@@ -1,12 +1,16 @@
 import asyncio
 import json
+import os
 import threading
 import traceback
-import os
-from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from contextlib import asynccontextmanager
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from typing import Any
+
+import asyncpg
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from db import create_pool
 from ingest_dexscreener import ingest_manual_token, main as run_ingestion
@@ -375,9 +379,7 @@ def start_manual_token_job(token_address: str) -> tuple[bool, dict]:
     return True, get_scan_state()
 
 
-async def fetch_summary() -> dict:
-    pool = await create_pool()
-
+async def fetch_summary(pool: asyncpg.Pool) -> dict:
     try:
         async with pool.acquire() as conn:
             rows = await conn.fetch(
@@ -431,12 +433,10 @@ async def fetch_summary() -> dict:
             "unique_tokens": unique_tokens or 0,
         }
     finally:
-        await pool.close()
+        pass  # pool lifetime managed by FastAPI lifespan
 
 
-async def fetch_watchlist(status: str | None, limit: int) -> list[dict]:
-    pool = await create_pool()
-
+async def fetch_watchlist(pool: asyncpg.Pool, status: str | None, limit: int) -> list[dict]:
     try:
         where_conditions = ["LOWER(COALESCE(p.dex_id, '')) <> 'pumpfun'"]
         params = [limit]
@@ -714,12 +714,10 @@ async def fetch_watchlist(status: str | None, limit: int) -> list[dict]:
 
         return [dict(row) for row in rows]
     finally:
-        await pool.close()
+        pass  # pool lifetime managed by FastAPI lifespan
 
 
-async def fetch_token_detail(run_id: int, token_id: int) -> dict:
-    pool = await create_pool()
-
+async def fetch_token_detail(pool: asyncpg.Pool, run_id: int, token_id: int) -> dict:
     try:
         async with pool.acquire() as conn:
             token = await conn.fetchrow(
@@ -968,12 +966,10 @@ async def fetch_token_detail(run_id: int, token_id: int) -> dict:
             "relationships": [dict(row) for row in relationships],
         }
     finally:
-        await pool.close()
+        pass  # pool lifetime managed by FastAPI lifespan
 
 
-async def fetch_runs(limit: int) -> list[dict]:
-    pool = await create_pool()
-
+async def fetch_runs(pool: asyncpg.Pool, limit: int) -> list[dict]:
     try:
         async with pool.acquire() as conn:
             rows = await conn.fetch(
@@ -998,11 +994,10 @@ async def fetch_runs(limit: int) -> list[dict]:
 
         return [dict(row) for row in rows]
     finally:
-        await pool.close()
+        pass  # pool lifetime managed by FastAPI lifespan
 
 
-async def fetch_whale_radar(limit: int, wallet_address: str | None = None) -> dict:
-    pool = await create_pool()
+async def fetch_whale_radar(pool: asyncpg.Pool, limit: int, wallet_address: str | None = None) -> dict:
     min_alert_amount_sol = float(os.getenv("WHALE_SIGNAL_ALERT_MIN_SOL", "0.1"))
     min_alert_score = float(os.getenv("WHALE_SIGNAL_ALERT_MIN_SCORE_10", "5"))
     confluence_min_wallets = int(os.getenv("WHALE_CONFLUENCE_MIN_WALLETS", "2"))
@@ -1338,12 +1333,10 @@ async def fetch_whale_radar(limit: int, wallet_address: str | None = None) -> di
             },
         }
     finally:
-        await pool.close()
+        pass  # pool lifetime managed by FastAPI lifespan
 
 
-async def fetch_wallet_detail(wallet_address: str) -> dict:
-    pool = await create_pool()
-
+async def fetch_wallet_detail(pool: asyncpg.Pool, wallet_address: str) -> dict:
     try:
         async with pool.acquire() as conn:
             wallet = await conn.fetchrow(
@@ -1530,35 +1523,33 @@ async def fetch_wallet_detail(wallet_address: str) -> dict:
             "stats": dict(stats) if stats else {},
         }
     finally:
-        await pool.close()
+        pass  # pool lifetime managed by FastAPI lifespan
 
 
-async def store_whale_signal(payload: dict) -> dict:
-    pool = await create_pool()
-
+async def store_whale_signal(pool: asyncpg.Pool, payload: dict) -> dict:
     try:
         return await save_live_whale_signal(pool, payload)
     finally:
-        await pool.close()
+        pass  # pool lifetime managed by FastAPI lifespan
 
 
-async def store_whale_signal_payload(payload) -> dict:
+async def store_whale_signal_payload(pool: asyncpg.Pool, payload) -> dict:
     if isinstance(payload, list):
         saved = []
         for item in payload:
             if isinstance(item, dict):
-                signal = await store_whale_signal(item)
-                signal["auto_analysis"] = await maybe_queue_whale_signal_analysis(signal)
+                signal = await store_whale_signal(pool, item)
+                signal["auto_analysis"] = await maybe_queue_whale_signal_analysis(pool, signal)
                 saved.append(signal)
         return {"saved_count": len(saved), "signals": saved}
     if isinstance(payload, dict):
-        signal = await store_whale_signal(payload)
-        signal["auto_analysis"] = await maybe_queue_whale_signal_analysis(signal)
+        signal = await store_whale_signal(pool, payload)
+        signal["auto_analysis"] = await maybe_queue_whale_signal_analysis(pool, signal)
         return signal
     raise ValueError("Webhook payload must be a JSON object or array")
 
 
-async def maybe_queue_whale_signal_analysis(signal: dict) -> dict:
+async def maybe_queue_whale_signal_analysis(pool: asyncpg.Pool, signal: dict) -> dict:
     token_address = str(signal.get("token_address") or "").strip()
     wallet_address = str(signal.get("wallet_address") or "").strip()
     signal_type = str(signal.get("signal_type") or "").upper()
@@ -1573,7 +1564,6 @@ async def maybe_queue_whale_signal_analysis(signal: dict) -> dict:
     if float(signal.get("amount_sol") or 0) < min_auto_analyze_amount:
         return {"queued": False, "reason": f"Signal amount is below {min_auto_analyze_amount} SOL"}
 
-    pool = await create_pool()
     try:
         async with pool.acquire() as conn:
             profile = await conn.fetchrow(
@@ -1651,12 +1641,10 @@ async def maybe_queue_whale_signal_analysis(signal: dict) -> dict:
 
             return {"queued": True, "job_id": row["id"], "reason": "Queued from whale live signal"}
     finally:
-        await pool.close()
+        pass  # pool lifetime managed by FastAPI lifespan
 
 
-async def run_whale_action(action: str) -> dict:
-    pool = await create_pool()
-
+async def run_whale_action(pool: asyncpg.Pool, action: str) -> dict:
     try:
         if action == "audit":
             return await run_whale_consistency_audit(pool)
@@ -1668,198 +1656,253 @@ async def run_whale_action(action: str) -> dict:
             return await run_whale_survival_service(pool)
         raise ValueError(f"Unknown whale action: {action}")
     finally:
-        await pool.close()
+        pass  # pool lifetime managed by FastAPI lifespan
 
 
-def parse_limit(query: dict[str, list[str]], default: int = 50, maximum: int = 200) -> int:
-    raw_value = query.get("limit", [str(default)])[0]
+def parse_limit_str(raw: str | None, default: int = 50, maximum: int = 200) -> int:
+    """Mirror of the original parse_limit but takes a single string value.
 
+    Falls back to default on missing or non-integer input (does not 422).
+    """
+    if raw is None or raw == "":
+        return default
     try:
-        value = int(raw_value)
+        value = int(raw)
     except ValueError:
         value = default
-
     return max(1, min(value, maximum))
 
 
-class QuantRequestHandler(BaseHTTPRequestHandler):
-    server_version = "QuantWatchlist/0.1"
+# ----------------------------------------------------------------------------
+# FastAPI application
+# ----------------------------------------------------------------------------
 
-    def do_GET(self) -> None:
-        parsed = urlparse(self.path)
-        query = parse_qs(parsed.query)
 
-        if parsed.path == "/":
-            self.send_static_file(STATIC_DIR / "dashboard.html", "text/html; charset=utf-8")
-            return
+class QuantJSONResponse(JSONResponse):
+    """JSONResponse that mirrors the original `json.dumps(default=str)` behavior.
 
-        if parsed.path == "/token":
-            self.send_static_file(STATIC_DIR / "token_detail.html", "text/html; charset=utf-8")
-            return
+    Preserves Decimal/datetime/UUID serialization as strings to keep API
+    responses byte-compatible with the previous BaseHTTPRequestHandler version.
+    """
 
-        if parsed.path == "/whale-radar":
-            self.send_static_file(STATIC_DIR / "whale_radar.html", "text/html; charset=utf-8")
-            return
+    def render(self, content: Any) -> bytes:
+        return json.dumps(
+            content,
+            default=json_default,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
 
-        if parsed.path == "/wallet":
-            self.send_static_file(STATIC_DIR / "wallet_detail.html", "text/html; charset=utf-8")
-            return
 
-        if parsed.path == "/api/health":
-            self.send_json({"status": "ok"})
-            return
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Create one asyncpg pool for the entire application lifetime."""
+    pool = await create_pool()
+    app.state.pool = pool
+    try:
+        yield
+    finally:
+        await pool.close()
 
-        if parsed.path == "/api/summary":
-            self.send_json(asyncio.run(fetch_summary()))
-            return
 
-        if parsed.path == "/api/watchlist":
-            status = query.get("status", [None])[0]
-            limit = parse_limit(query)
-            self.send_json(asyncio.run(fetch_watchlist(status=status, limit=limit)))
-            return
+app = FastAPI(
+    title="Quant Watchlist",
+    version="0.2.0",
+    default_response_class=QuantJSONResponse,
+    lifespan=lifespan,
+)
 
-        if parsed.path == "/api/token-detail":
-            try:
-                run_id = int(query.get("run_id", [""])[0])
-                token_id = int(query.get("token_id", [""])[0])
-            except ValueError:
-                self.send_json(
-                    {"error": "run_id and token_id are required integers"},
-                    status=HTTPStatus.BAD_REQUEST,
-                )
-                return
 
-            self.send_json(asyncio.run(fetch_token_detail(run_id=run_id, token_id=token_id)))
-            return
+@app.middleware("http")
+async def add_no_store_header(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
-        if parsed.path == "/api/runs":
-            limit = parse_limit(query, default=10, maximum=100)
-            self.send_json(asyncio.run(fetch_runs(limit=limit)))
-            return
 
-        if parsed.path == "/api/whale-radar":
-            limit = parse_limit(query, default=50, maximum=300)
-            wallet = query.get("wallet", [None])[0]
-            self.send_json(asyncio.run(fetch_whale_radar(limit=limit, wallet_address=wallet)))
-            return
+def _static(name: str) -> Response:
+    path = STATIC_DIR / name
+    if not path.exists():
+        return Response(content="Static file not found", status_code=404)
+    return FileResponse(path, media_type="text/html; charset=utf-8")
 
-        if parsed.path == "/api/wallet-detail":
-            wallet = str(query.get("wallet", [""])[0] or query.get("address", [""])[0]).strip()
-            if not is_valid_solana_address(wallet):
-                self.send_json({"error": "wallet is required"}, status=HTTPStatus.BAD_REQUEST)
-                return
 
-            self.send_json(asyncio.run(fetch_wallet_detail(wallet)))
-            return
+# ---- HTML page routes -------------------------------------------------------
 
-        if parsed.path == "/api/scan/status":
-            self.send_json(get_scan_state())
-            return
 
-        self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+@app.get("/", include_in_schema=False)
+async def page_dashboard() -> Response:
+    return _static("dashboard.html")
 
-    def do_POST(self) -> None:
-        parsed = urlparse(self.path)
 
-        if parsed.path == "/api/scan":
-            started, state = start_scan_job()
-            status = HTTPStatus.ACCEPTED if started else HTTPStatus.CONFLICT
-            self.send_json(state, status=status)
-            return
+@app.get("/token", include_in_schema=False)
+async def page_token_detail() -> Response:
+    return _static("token_detail.html")
 
-        if parsed.path == "/api/analyze-token":
-            try:
-                length = int(self.headers.get("Content-Length", "0"))
-                raw_body = self.rfile.read(length).decode("utf-8") if length else "{}"
-                payload = json.loads(raw_body)
-            except (ValueError, json.JSONDecodeError):
-                self.send_json({"error": "Invalid JSON body"}, status=HTTPStatus.BAD_REQUEST)
-                return
 
-            token_address = str(payload.get("token_address") or "").strip()
-            started, state = start_manual_token_job(token_address)
-            if not started and state.get("error") == "Invalid Solana token address":
-                self.send_json(state, status=HTTPStatus.BAD_REQUEST)
-                return
+@app.get("/whale-radar", include_in_schema=False)
+async def page_whale_radar() -> Response:
+    return _static("whale_radar.html")
 
-            status = HTTPStatus.ACCEPTED if started else HTTPStatus.CONFLICT
-            self.send_json(state, status=status)
-            return
 
-        if parsed.path == "/api/whale-signal":
-            expected_auth = os.getenv("WHALE_WEBHOOK_AUTH_HEADER") or os.getenv("HELIUS_WEBHOOK_AUTH_HEADER")
-            if expected_auth and self.headers.get("Authorization") != expected_auth:
-                self.send_json({"error": "Unauthorized webhook"}, status=HTTPStatus.UNAUTHORIZED)
-                return
+@app.get("/wallet", include_in_schema=False)
+async def page_wallet_detail() -> Response:
+    return _static("wallet_detail.html")
 
-            try:
-                length = int(self.headers.get("Content-Length", "0"))
-                raw_body = self.rfile.read(length).decode("utf-8") if length else "{}"
-                payload = json.loads(raw_body)
-            except (ValueError, json.JSONDecodeError):
-                self.send_json({"error": "Invalid JSON body"}, status=HTTPStatus.BAD_REQUEST)
-                return
 
-            try:
-                saved = asyncio.run(store_whale_signal_payload(payload))
-            except Exception as exc:
-                self.send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
-                return
+# ---- API GET routes ---------------------------------------------------------
 
-            self.send_json(saved, status=HTTPStatus.ACCEPTED)
-            return
 
-        if parsed.path in {
-            "/api/whale-radar/audit",
-            "/api/whale-radar/refresh-prices",
-            "/api/whale-radar/sync-webhook",
-            "/api/whale-radar/survival",
-        }:
-            action = parsed.path.rsplit("/", 1)[-1]
-            try:
-                result = asyncio.run(run_whale_action(action))
-            except Exception as exc:
-                self.send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
-                return
+@app.get("/api/health")
+async def api_health() -> dict:
+    return {"status": "ok"}
 
-            self.send_json(result, status=HTTPStatus.ACCEPTED)
-            return
 
-        self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+@app.get("/api/summary")
+async def api_summary(request: Request) -> dict:
+    return await fetch_summary(request.app.state.pool)
 
-    def send_json(self, payload, status: HTTPStatus = HTTPStatus.OK) -> None:
-        body = json.dumps(payload, default=json_default).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
 
-    def send_static_file(self, path: Path, content_type: str) -> None:
-        if not path.exists():
-            self.send_error(HTTPStatus.NOT_FOUND, "Static file not found")
-            return
+@app.get("/api/watchlist")
+async def api_watchlist(
+    request: Request,
+    status: str | None = None,
+    limit: str | None = None,
+) -> list[dict]:
+    return await fetch_watchlist(
+        request.app.state.pool,
+        status=status,
+        limit=parse_limit_str(limit, default=50, maximum=200),
+    )
 
-        body = path.read_bytes()
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
 
-    def log_message(self, format: str, *args) -> None:
-        return
+@app.get("/api/token-detail")
+async def api_token_detail(
+    request: Request,
+    run_id: str = "",
+    token_id: str = "",
+) -> Response:
+    try:
+        run_id_int = int(run_id)
+        token_id_int = int(token_id)
+    except ValueError:
+        return QuantJSONResponse(
+            {"error": "run_id and token_id are required integers"},
+            status_code=400,
+        )
+    payload = await fetch_token_detail(
+        request.app.state.pool,
+        run_id=run_id_int,
+        token_id=token_id_int,
+    )
+    return QuantJSONResponse(payload)
+
+
+@app.get("/api/runs")
+async def api_runs(request: Request, limit: str | None = None) -> list[dict]:
+    return await fetch_runs(
+        request.app.state.pool,
+        limit=parse_limit_str(limit, default=10, maximum=100),
+    )
+
+
+@app.get("/api/whale-radar")
+async def api_whale_radar(
+    request: Request,
+    limit: str | None = None,
+    wallet: str | None = None,
+) -> dict:
+    return await fetch_whale_radar(
+        request.app.state.pool,
+        limit=parse_limit_str(limit, default=50, maximum=300),
+        wallet_address=wallet,
+    )
+
+
+@app.get("/api/wallet-detail")
+async def api_wallet_detail(
+    request: Request,
+    wallet: str = "",
+    address: str = "",
+) -> Response:
+    addr = (wallet or address).strip()
+    if not is_valid_solana_address(addr):
+        return QuantJSONResponse({"error": "wallet is required"}, status_code=400)
+    payload = await fetch_wallet_detail(request.app.state.pool, addr)
+    return QuantJSONResponse(payload)
+
+
+@app.get("/api/scan/status")
+async def api_scan_status() -> dict:
+    return get_scan_state()
+
+
+# ---- API POST routes --------------------------------------------------------
+
+
+@app.post("/api/scan")
+async def api_scan_post() -> Response:
+    started, state = start_scan_job()
+    status_code = 202 if started else 409
+    return QuantJSONResponse(state, status_code=status_code)
+
+
+@app.post("/api/analyze-token")
+async def api_analyze_token(request: Request) -> Response:
+    try:
+        raw = await request.body()
+        payload = json.loads(raw.decode("utf-8")) if raw else {}
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return QuantJSONResponse({"error": "Invalid JSON body"}, status_code=400)
+
+    if not isinstance(payload, dict):
+        return QuantJSONResponse({"error": "Invalid JSON body"}, status_code=400)
+
+    token_address = str(payload.get("token_address") or "").strip()
+    started, state = start_manual_token_job(token_address)
+    if not started and state.get("error") == "Invalid Solana token address":
+        return QuantJSONResponse(state, status_code=400)
+
+    status_code = 202 if started else 409
+    return QuantJSONResponse(state, status_code=status_code)
+
+
+@app.post("/api/whale-signal")
+async def api_whale_signal(request: Request) -> Response:
+    expected_auth = os.getenv("WHALE_WEBHOOK_AUTH_HEADER") or os.getenv("HELIUS_WEBHOOK_AUTH_HEADER")
+    if expected_auth and request.headers.get("Authorization") != expected_auth:
+        return QuantJSONResponse({"error": "Unauthorized webhook"}, status_code=401)
+
+    try:
+        raw = await request.body()
+        payload = json.loads(raw.decode("utf-8")) if raw else {}
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return QuantJSONResponse({"error": "Invalid JSON body"}, status_code=400)
+
+    try:
+        saved = await store_whale_signal_payload(request.app.state.pool, payload)
+    except Exception as exc:
+        return QuantJSONResponse({"error": str(exc)}, status_code=400)
+
+    return QuantJSONResponse(saved, status_code=202)
+
+
+@app.post("/api/whale-radar/{action}")
+async def api_whale_radar_action(action: str, request: Request) -> Response:
+    if action not in {"audit", "refresh-prices", "sync-webhook", "survival"}:
+        return QuantJSONResponse({"error": "Not found"}, status_code=404)
+    try:
+        result = await run_whale_action(request.app.state.pool, action)
+    except Exception as exc:
+        return QuantJSONResponse({"error": str(exc)}, status_code=400)
+    return QuantJSONResponse(result, status_code=202)
 
 
 def main() -> None:
-    host = "127.0.0.1"
-    port = 8000
-    server = ThreadingHTTPServer((host, port), QuantRequestHandler)
+    host = os.getenv("MEMECO_HOST", "127.0.0.1")
+    port = int(os.getenv("MEMECO_PORT", "8000"))
     print(f"Quant watchlist dashboard: http://{host}:{port}")
-    server.serve_forever()
+    uvicorn.run(app, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":
