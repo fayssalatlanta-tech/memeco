@@ -4,18 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Token Detail</title>
+  <link rel="stylesheet" href="/static/shared/tokens.css">
+  <script src="/static/shared/utils.js"></script>
   <style>
     :root {
       color-scheme: dark;
       --bg: #070711;
       --bg-soft: #11121d;
       --panel: rgba(22, 23, 36, .82);
-      --panel-solid: #ffffff;
-      --surface: #f7f8fc;
       --text: #f8f7ff;
-      --text-dark: #111827;
       --muted: #a4a8bd;
-      --muted-dark: #667085;
       --line: rgba(255, 255, 255, .12);
       --line-dark: #dfe3e8;
       --pass: #16a36a;
@@ -193,7 +191,6 @@
     }
 
     .address, .wallet-address {
-      color: var(--muted-dark);
       font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -429,7 +426,6 @@
       margin-top: 18px;
       background: rgba(247, 248, 252, .98);
       border-color: rgba(255, 255, 255, .14);
-      color: var(--text-dark);
       box-shadow: var(--shadow-soft);
     }
 
@@ -630,7 +626,6 @@
       top: 0;
       z-index: 1;
       background: #f3f5fb;
-      color: var(--muted-dark);
       font-size: 12px;
       font-weight: 820;
       text-transform: uppercase;

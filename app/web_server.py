@@ -1727,6 +1727,26 @@ def _static(name: str) -> Response:
     return FileResponse(path, media_type="text/html; charset=utf-8")
 
 
+# Content-type whitelist for /static/{path}. Anything not on this list is 404.
+_STATIC_ASSET_CONTENT_TYPES = {
+    ".css": "text/css; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".mjs": "application/javascript; charset=utf-8",
+    ".map": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".otf": "font/otf",
+}
+
+
 # ---- HTML page routes -------------------------------------------------------
 
 
@@ -1748,6 +1768,26 @@ async def page_whale_radar() -> Response:
 @app.get("/wallet", include_in_schema=False)
 async def page_wallet_detail() -> Response:
     return _static("wallet_detail.html")
+
+
+@app.get("/static/{path:path}", include_in_schema=False)
+async def page_static_asset(path: str) -> Response:
+    # Reject any path that tries to escape STATIC_DIR.
+    candidate = (STATIC_DIR / path).resolve()
+    try:
+        candidate.relative_to(STATIC_DIR.resolve())
+    except ValueError:
+        return Response(content="Not found", status_code=404)
+
+    if not candidate.is_file():
+        return Response(content="Not found", status_code=404)
+
+    media_type = _STATIC_ASSET_CONTENT_TYPES.get(candidate.suffix.lower())
+    if media_type is None:
+        # Don't serve arbitrary file types; HTML pages have their own routes.
+        return Response(content="Not found", status_code=404)
+
+    return FileResponse(candidate, media_type=media_type)
 
 
 # ---- API GET routes ---------------------------------------------------------
