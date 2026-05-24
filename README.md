@@ -58,7 +58,22 @@ Apply later migrations in order when new features are added:
 Get-Content migrations\007_dev_wallet_flow.sql | docker exec -i quant_db psql -U admin -d quant_intelligence -v ON_ERROR_STOP=1
 Get-Content migrations\008_whale_radar.sql | docker exec -i quant_db psql -U admin -d quant_intelligence -v ON_ERROR_STOP=1
 Get-Content migrations\009_whale_reverse_discovery.sql | docker exec -i quant_db psql -U admin -d quant_intelligence -v ON_ERROR_STOP=1
+Get-Content migrations\012_timescale_hypertables.sql | docker exec -i quant_db psql -U admin -d quant_intelligence -v ON_ERROR_STOP=1
 ```
+
+Migration `012_timescale_hypertables.sql` is what actually justifies the
+TimescaleDB image. It:
+
+- converts `token_prices` (partition column `time`) and `raw_api_snapshots`
+  (partition column `created_at`) into hypertables with 1-day chunks,
+- adds retention policies (30 days for `token_prices`, 14 days for
+  `raw_api_snapshots`) so the raw tables stop growing forever,
+- creates a continuous aggregate `token_prices_hourly` with OHLC plus
+  liquidity / volume / market-cap rollups, refreshed every 30 minutes,
+  which keeps long-range price history available even after the raw
+  rows are dropped by retention.
+
+The migration is idempotent and safe to re-run.
 
 For cluster analysis, set a Helius key in `.env`:
 

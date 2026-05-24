@@ -99,6 +99,12 @@ Main layers:
 - Cache or reuse wallet analysis when possible before expanding top-holder graph depth.
 - Helius-heavy analysis should stay bounded or move to background jobs.
 - Relationship and raw snapshot tables can grow quickly; use retention or pagination before deleting data.
+- `token_prices` and `raw_api_snapshots` are TimescaleDB hypertables (see
+  `migrations/012_timescale_hypertables.sql`). Retention policies drop raw
+  rows after 30 / 14 days respectively. Long-range price history is kept in
+  the `token_prices_hourly` continuous aggregate, not in the raw table.
+  When adding features that need older raw price rows, query the continuous
+  aggregate instead of extending retention.
 
 ## Current API Surface
 
@@ -177,6 +183,5 @@ Also include:
 - Add persistent token history and alert on dangerous change.
 - Add caching for repeated wallet intelligence requests.
 - Add paginated wallet graph expansion.
-- Add raw snapshot retention policy.
 - Add a dedicated system/errors page for API failures.
 - Add background discovery jobs for new and upcoming tokens.

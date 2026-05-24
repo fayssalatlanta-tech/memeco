@@ -7,6 +7,104 @@ the project.
 
 ---
 
+## 2026-05-24 — Justify the TimescaleDB image: hypertables, retention, continuous aggregate
+
+### Why
+
+`docker-compose.yml` was already pulling `timescale/timescaledb:latest-pg15`
+but no migration ever called `create_hypertable()`. We were paying the image
+and operational overhead of TimescaleDB while running it as plain Postgres.
+`token_prices` and `raw_api_snapshots` are the two natural candidates: both
+are append-mostly, time-keyed, and already grow without bound (`raw_api_snapshots`
+in particular has no retention and is queried only by recency).
+
+This was follow-up #4 in the previous changelog entry.
+
+### What changed
+
+#### `migrations/012_timescale_hypertables.sql` (new)
+
+- Loads `CREATE EXTENSION IF NOT EXISTS timescaledb`.
+- Converts `token_prices` to a hypertable on `time` with 1-day chunks. The
+  existing `UNIQUE (time, pair_id)` constraint already includes the
+  partitioning column, so no schema rewrite is needed.
+- Converts `raw_api_snapshots` to a hypertable on `created_at` with 1-day
+  chunks. Replaces `PRIMARY KEY (id)` with `PRIMARY KEY (id, created_at)`
+  because hypertable unique constraints must include the partitioning column.
+  The `BIGSERIAL` sequence is unaffected and nothing in the codebase
+  references `raw_api_snapshots(id)` by FK, so this is invisible to callers.
+- Adds retention policies: `token_prices` keeps 30 days of raw rows,
+  `raw_api_snapshots` keeps 14 days. Both are registered with
+  `if_not_exists => TRUE`.
+- Creates the continuous aggregate `token_prices_hourly` (1-hour buckets per
+  pair, OHLC + avg/max liquidity, max 1h/24h volume, last market cap / FDV,
+  total buys/sells per hour, sample count) and a refresh policy that runs
+  every 30 minutes over the last 30 days. This keeps long-range price
+  history available even after the raw rows are dropped by retention.
+- The whole migration is idempotent: re-running it emits NOTICEs but does
+  not error or duplicate work.
+
+#### `README.md`
+
+- Added migration 012 to the "Apply later migrations in order" block.
+- Added a short paragraph explaining what 012 changes and why it justifies
+  the TimescaleDB image.
+
+#### `DEVELOPMENT_GUIDE.md`
+
+- Added a Performance Rule pointing future contributors at the continuous
+  aggregate when they need long-range price history.
+- Removed "Add raw snapshot retention policy" from "Known Future Improvements"
+  since it is now done.
+
+### Backwards compatibility
+
+- `token_prices` schema is unchanged. The existing upsert in
+  `app/prices.py` (`ON CONFLICT (time, pair_id)`) still works because that
+  unique constraint already included the partitioning column.
+- `raw_api_snapshots` keeps the same columns. The only schema change is
+  promoting `(id, created_at)` to the primary key. The insert path in
+  `app/system.py` does not specify the primary key columns and is unaffected.
+- All existing read paths (`market_filter_service`, `liquidity_filter_service`,
+  `web_server.py` lateral joins) are plain SELECTs and continue to work
+  against hypertables transparently.
+- No application code depends on `raw_api_snapshots(id)` and no FK targets
+  it, so dropping/recreating the primary key is safe.
+- Retention will start dropping data older than 30 / 14 days. On a fresh
+  install nothing is dropped; on an existing install older rows will be
+  pruned by the next retention job. If a deployment needs to keep more
+  raw history, change the `drop_after` intervals before applying the
+  migration.
+
+### Tests
+
+- Validated end-to-end against a real PostgreSQL 15 + TimescaleDB 2.27
+  instance:
+  - Loaded `001_initial_schema.sql`, inserted 201 sample rows into
+    `token_prices` and 51 into `raw_api_snapshots`.
+  - Applied `012_timescale_hypertables.sql`. Both tables became hypertables
+    with one chunk; all rows preserved; 3 jobs registered (2 retention,
+    1 continuous aggregate refresh); `token_prices_hourly` populated
+    with 4 hourly buckets.
+  - Re-applied the migration: emitted only NOTICEs, no errors, no
+    duplicates.
+  - Confirmed the existing app SQL paths still work post-migration: the
+    `app/prices.py` upsert (`ON CONFLICT (time, pair_id)`) and the
+    `app/system.py` snapshot insert both succeeded on the hypertables.
+
+### Follow-ups identified during this work (NOT addressed here)
+
+- Continuous aggregate `token_prices_hourly` is not yet wired into the
+  dashboard's 1h/4h/24h price chips. Today those chips read directly from
+  `token_prices` via lateral joins. After 30 days of retention they will
+  start returning fewer rows; the dashboard should switch to the aggregate
+  for any range > a few hours.
+- Compression policies were intentionally not added. They are worth doing
+  once row volume justifies the operational complexity, especially for
+  `raw_api_snapshots` whose JSONB blobs compress very well.
+
+---
+
 ## 2026-05-24 — Migrate web server from `BaseHTTPRequestHandler` to FastAPI
 
 ### Why
@@ -133,9 +231,10 @@ limit blast radius:
 3. **CLI scripts still create-and-close their own pools** (`run_*.py`,
    `ingest_dexscreener.py`). That is correct for one-shot CLI invocations and
    was deliberately left alone.
-4. **TimescaleDB image without hypertables.** No migration calls
+4. **TimescaleDB image without hypertables.** ~~No migration calls
    `create_hypertable()` despite using `timescale/timescaledb:latest-pg15`.
-   `token_prices` and `raw_api_snapshots` are the natural candidates.
+   `token_prices` and `raw_api_snapshots` are the natural candidates.~~
+   Done in `migrations/012_timescale_hypertables.sql` (2026-05-24).
 5. **Migration tool.** SQL files are still applied via `docker cp` + manual
    `psql`. Adding Alembic / dbmate / a tiny `apply_migrations.py` would make
    onboarding and deploys safer.
