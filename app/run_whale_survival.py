@@ -1,8 +1,8 @@
 import asyncio
 import json
 
-from db import create_pool
-from services.whale_survival_service import run_whale_survival_service
+from app.db import create_pool
+from app.services.whale_survival_service import run_whale_survival_service
 
 
 async def main():

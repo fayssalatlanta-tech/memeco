@@ -1,8 +1,8 @@
 import asyncio
 import json
 
-from db import create_pool
-from services.whale_webhook_service import sync_whale_webhook
+from app.db import create_pool
+from app.services.whale_webhook_service import sync_whale_webhook
 
 
 async def main():

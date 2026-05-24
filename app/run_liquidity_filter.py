@@ -1,8 +1,8 @@
 import asyncio
 from decimal import InvalidOperation
 
-from db import create_pool
-from services.liquidity_filter_service import run_liquidity_filter_service
+from app.db import create_pool
+from app.services.liquidity_filter_service import run_liquidity_filter_service
 
 
 def fmt_number(value, digits: int = 2) -> str:

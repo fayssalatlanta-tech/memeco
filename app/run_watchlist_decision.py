@@ -1,8 +1,8 @@
 import asyncio
 from decimal import InvalidOperation
 
-from db import create_pool
-from services.watchlist_decision_service import run_watchlist_decision_service
+from app.db import create_pool
+from app.services.watchlist_decision_service import run_watchlist_decision_service
 
 
 def fmt_number(value, digits: int = 2) -> str:

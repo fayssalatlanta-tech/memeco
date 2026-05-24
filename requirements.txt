@@ -1,5 +1,8 @@
-asyncpg==0.30.0
-fastapi==0.115.5
-httpx==0.27.2
-python-dotenv==1.0.1
-uvicorn[standard]==0.32.1
+# Legacy requirements file — kept for compatibility.
+# The canonical dependency list lives in pyproject.toml.
+# Prefer: pip install -e .
+asyncpg>=0.30.0
+fastapi>=0.115.5
+httpx>=0.27.2
+python-dotenv>=1.0.1
+uvicorn[standard]>=0.32.1

@@ -5,10 +5,7 @@ from typing import Any
 
 import asyncpg
 
-try:
-    from dexscreener import DexScreenerClient, safe_float
-except ModuleNotFoundError:
-    from app.dexscreener import DexScreenerClient, safe_float
+from app.dexscreener import DexScreenerClient, safe_float
 
 
 def _decimal_or_none(value: float | None) -> Decimal | None:

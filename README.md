@@ -39,27 +39,26 @@ Start PostgreSQL/TimescaleDB:
 docker compose up -d
 ```
 
-Install Python dependencies:
+Install the project as an editable package (this also installs all dependencies):
 
-```powershell
-python -m pip install -r requirements.txt
+```bash
+pip install -e .
 ```
 
-Apply the database schema:
+Apply all database migrations automatically:
 
-```powershell
-docker cp migrations\001_initial_schema.sql quant_db:/tmp/001_initial_schema.sql
-docker exec quant_db psql -U admin -d quant_intelligence -v ON_ERROR_STOP=1 -f /tmp/001_initial_schema.sql
+```bash
+memeco-migrate
 ```
 
-Apply later migrations in order when new features are added:
+The migration tool tracks applied migrations in a `schema_migrations` table.
+It is idempotent — re-running it skips already-applied files and only applies
+new ones. Use `memeco-migrate --dry-run` to see pending migrations without
+applying them.
 
-```powershell
-Get-Content migrations\007_dev_wallet_flow.sql | docker exec -i quant_db psql -U admin -d quant_intelligence -v ON_ERROR_STOP=1
-Get-Content migrations\008_whale_radar.sql | docker exec -i quant_db psql -U admin -d quant_intelligence -v ON_ERROR_STOP=1
-Get-Content migrations\009_whale_reverse_discovery.sql | docker exec -i quant_db psql -U admin -d quant_intelligence -v ON_ERROR_STOP=1
-Get-Content migrations\012_timescale_hypertables.sql | docker exec -i quant_db psql -U admin -d quant_intelligence -v ON_ERROR_STOP=1
-```
+> **Legacy method (still works):** You can still apply individual migrations
+> manually via `docker exec -i quant_db psql ...` if needed. The migration
+> tool will detect already-applied files by checksum and skip them.
 
 Migration `012_timescale_hypertables.sql` is what actually justifies the
 TimescaleDB image. It:
@@ -98,14 +97,16 @@ The ingestion step combines official DexScreener latest profiles, ads, boosts, a
 
 Ingest fresh DexScreener data:
 
-```powershell
-python app\ingest_dexscreener.py
+```bash
+memeco-ingest
+# or: python -m app.ingest_dexscreener
 ```
 
 Run the analysis pipeline on stored data:
 
-```powershell
-python app\run_analysis_pipeline.py
+```bash
+memeco-pipeline
+# or: python -m app.run_analysis_pipeline
 ```
 
 From the dashboard, you can also paste one Solana token address and click `Analyze Token`. The system creates a fresh run for that token and analyzes it like the other dashboard tokens.
@@ -217,8 +218,9 @@ WHALE_AUDIT_TX_LIMIT=50
 
 ## Run The Dashboard
 
-```powershell
-python app\web_server.py
+```bash
+memeco-server
+# or: python -m app.web_server
 ```
 
 Open:

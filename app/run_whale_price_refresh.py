@@ -1,8 +1,8 @@
 import asyncio
 import json
 
-from db import create_pool
-from services.whale_price_refresh_service import refresh_whale_trade_prices
+from app.db import create_pool
+from app.services.whale_price_refresh_service import refresh_whale_trade_prices
 
 
 async def main():

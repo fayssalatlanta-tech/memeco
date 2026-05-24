@@ -7,24 +7,14 @@ from typing import Any
 import asyncpg
 import httpx
 
-try:
-    from helius import HeliusClient
-    from services.dev_wallet_audit_service import (
-        extract_dev_wallet,
-        normalize_json,
-        safe_float,
-        token_transfer_amount,
-        token_transfer_mint,
-    )
-except ModuleNotFoundError:
-    from app.helius import HeliusClient
-    from app.services.dev_wallet_audit_service import (
-        extract_dev_wallet,
-        normalize_json,
-        safe_float,
-        token_transfer_amount,
-        token_transfer_mint,
-    )
+from app.helius import HeliusClient
+from app.services.dev_wallet_audit_service import (
+    extract_dev_wallet,
+    normalize_json,
+    safe_float,
+    token_transfer_amount,
+    token_transfer_mint,
+)
 
 
 MAX_DEPTH = 2

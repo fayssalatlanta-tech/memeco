@@ -1,5 +1,5 @@
 import asyncpg
-from validation import require_keys
+from app.validation import require_keys
 
 async def upsert_token(pool: asyncpg.Pool, token: dict) -> dict:
     require_keys(

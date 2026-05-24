@@ -10,19 +10,10 @@ from typing import Any
 
 import asyncpg
 
-try:
-    from dexscreener import DexScreenerClient, safe_float, safe_int
-    from helius import HeliusClient
-    from whale_scoring_logic import WhaleTrade, classify_elite_wallet, summarize_whale_trades
-except ModuleNotFoundError:
-    from app.dexscreener import DexScreenerClient, safe_float, safe_int
-    from app.helius import HeliusClient
-    from app.whale_scoring_logic import WhaleTrade, classify_elite_wallet, summarize_whale_trades
-
-try:
-    from services.whale_discovery_service import upsert_elite_wallet
-except ModuleNotFoundError:
-    from app.services.whale_discovery_service import upsert_elite_wallet
+from app.dexscreener import DexScreenerClient, safe_float, safe_int
+from app.helius import HeliusClient
+from app.whale_scoring_logic import WhaleTrade, classify_elite_wallet, summarize_whale_trades
+from app.services.whale_discovery_service import upsert_elite_wallet
 
 
 LAMPORTS_PER_SOL = 1_000_000_000

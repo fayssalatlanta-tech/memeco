@@ -12,26 +12,26 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from db import create_pool
-from ingest_dexscreener import ingest_manual_token, main as run_ingestion
-from services.cluster_analysis_service import run_cluster_analysis_service
-from services.contract_risk_service import run_contract_risk_service
-from services.liquidity_filter_service import run_liquidity_filter_service
-from services.dev_wallet_audit_service import run_dev_wallet_audit_service
-from services.market_filter_service import (
+from app.db import create_pool
+from app.ingest_dexscreener import ingest_manual_token, main as run_ingestion
+from app.services.cluster_analysis_service import run_cluster_analysis_service
+from app.services.contract_risk_service import run_contract_risk_service
+from app.services.liquidity_filter_service import run_liquidity_filter_service
+from app.services.dev_wallet_audit_service import run_dev_wallet_audit_service
+from app.services.market_filter_service import (
     get_early_dex_candidates,
     save_market_filter_results,
 )
-from services.wallet_analysis_service import run_wallet_analysis_service
-from services.wallet_intelligence_service import run_wallet_intelligence_service
-from services.wallet_manipulation_service import run_wallet_manipulation_service
-from services.dev_wallet_flow_service import run_dev_wallet_flow_service
-from services.watchlist_decision_service import run_watchlist_decision_service
-from services.whale_signal_service import save_live_whale_signal
-from services.whale_consistency_auditor_service import run_whale_consistency_audit
-from services.whale_price_refresh_service import refresh_whale_trade_prices
-from services.whale_webhook_service import sync_whale_webhook
-from services.whale_survival_service import run_whale_survival_service
+from app.services.wallet_analysis_service import run_wallet_analysis_service
+from app.services.wallet_intelligence_service import run_wallet_intelligence_service
+from app.services.wallet_manipulation_service import run_wallet_manipulation_service
+from app.services.dev_wallet_flow_service import run_dev_wallet_flow_service
+from app.services.watchlist_decision_service import run_watchlist_decision_service
+from app.services.whale_signal_service import save_live_whale_signal
+from app.services.whale_consistency_auditor_service import run_whale_consistency_audit
+from app.services.whale_price_refresh_service import refresh_whale_trade_prices
+from app.services.whale_webhook_service import sync_whale_webhook
+from app.services.whale_survival_service import run_whale_survival_service
 
 
 APP_DIR = Path(__file__).resolve().parent

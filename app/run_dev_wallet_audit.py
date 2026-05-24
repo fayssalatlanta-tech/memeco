@@ -1,8 +1,8 @@
 import asyncio
 from decimal import InvalidOperation
 
-from db import create_pool
-from services.dev_wallet_audit_service import run_dev_wallet_audit_service
+from app.db import create_pool
+from app.services.dev_wallet_audit_service import run_dev_wallet_audit_service
 
 
 def fmt_number(value, digits=2):

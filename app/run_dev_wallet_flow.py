@@ -1,7 +1,7 @@
 import asyncio
 
-from db import create_pool
-from services.dev_wallet_flow_service import run_dev_wallet_flow_service
+from app.db import create_pool
+from app.services.dev_wallet_flow_service import run_dev_wallet_flow_service
 
 
 async def main():

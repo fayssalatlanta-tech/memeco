@@ -1,7 +1,7 @@
 import asyncio
 
-from db import create_pool
-from services.cluster_analysis_service import run_cluster_analysis_service
+from app.db import create_pool
+from app.services.cluster_analysis_service import run_cluster_analysis_service
 
 
 async def main():

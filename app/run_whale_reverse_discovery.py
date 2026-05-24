@@ -1,8 +1,8 @@
 import asyncio
 import json
 
-from db import create_pool
-from services.whale_reverse_discovery_service import run_reverse_profit_discovery
+from app.db import create_pool
+from app.services.whale_reverse_discovery_service import run_reverse_profit_discovery
 
 
 async def main():

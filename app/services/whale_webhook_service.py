@@ -6,10 +6,7 @@ from typing import Any
 
 import asyncpg
 
-try:
-    from helius import HeliusClient
-except ModuleNotFoundError:
-    from app.helius import HeliusClient
+from app.helius import HeliusClient
 
 
 WEBHOOK_PROVIDER = "helius"

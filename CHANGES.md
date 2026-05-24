@@ -7,6 +7,125 @@ the project.
 
 ---
 
+## 2026-05-24 — Proper package structure, migration tool, remove dual-import hacks
+
+### Why
+
+Two structural issues made the project fragile:
+
+1. **Fragile imports.** Service files had `try/except ModuleNotFoundError`
+   blocks to support two import paths depending on how Python was launched
+   (`cwd=app/` for scripts vs project root for tests). This breaks the moment
+   a new developer or CI runs from a different directory.
+
+2. **No migration tool.** Migrations were raw SQL applied via `docker cp` +
+   PowerShell one-liners. This breaks the moment a teammate joins or you ship
+   to a server. There was no way to know which migrations had already been
+   applied.
+
+Both are fixed by turning `app/` into a proper installable package with
+`pyproject.toml` and adding a lightweight migration runner.
+
+### What changed
+
+#### `pyproject.toml` (new)
+
+- Defines the `memeco` package with setuptools.
+- Declares all dependencies (previously in `requirements.txt`).
+- Requires Python ≥ 3.10 (the codebase uses `type | None` syntax).
+- Console script entry points:
+  - `memeco-server` → `app.web_server:main`
+  - `memeco-ingest` → `app.ingest_dexscreener:cli`
+  - `memeco-pipeline` → `app.run_analysis_pipeline:cli`
+  - `memeco-migrate` → `app.apply_migrations:main`
+
+#### `app/__init__.py` (new)
+
+- Marks `app/` as a Python package.
+
+#### `app/apply_migrations.py` (new)
+
+- ~160-line migration runner.
+- Creates a `schema_migrations` table (version, filename, SHA-256 checksum,
+  applied_at) if not present.
+- Discovers all `migrations/*.sql` files, sorts by filename, applies pending
+  ones in order.
+- Detects TimescaleDB-specific statements (`create_hypertable`,
+  `add_retention_policy`, etc.) and runs those outside an explicit transaction.
+- Supports `--dry-run` / `-n` to show pending without applying.
+- Warns (but doesn't fail) if a previously-applied file's checksum changed.
+
+#### All `app/services/*.py` files with dual imports (10 files)
+
+- Removed every `try: ... except ModuleNotFoundError: ...` block.
+- Kept only the canonical `from app.xxx import ...` form.
+
+#### All `app/run_*.py` CLI scripts (17 files)
+
+- Changed `from db import create_pool` → `from app.db import create_pool`.
+- Changed `from services.xxx import ...` → `from app.services.xxx import ...`.
+- Added `def cli(): asyncio.run(main())` to `run_analysis_pipeline.py` and
+  `ingest_dexscreener.py` for the console script entry points.
+
+#### `app/web_server.py`
+
+- Changed all bare imports to absolute `from app.xxx import ...`.
+
+#### `app/ingest_dexscreener.py`
+
+- Changed all bare imports to absolute `from app.xxx import ...`.
+- Added `def cli()` entry point.
+
+#### `app/pairs.py`, `app/prices.py`, `app/tokens.py`, `app/risk.py`
+
+- Changed `from validation import require_keys` → `from app.validation import ...`.
+
+#### `app/services/cluster_analysis_service.py`
+
+- Changed bare `from helius import ...` → `from app.helius import ...`.
+
+#### `requirements.txt`
+
+- Kept for backwards compatibility with a note pointing to `pyproject.toml`.
+- Changed pinned versions to minimum-version ranges.
+
+#### `README.md`
+
+- Setup section now shows `pip install -e .` + `memeco-migrate`.
+- Run sections show console script commands alongside module invocations.
+- Kept legacy manual-migration note for existing users.
+
+#### `DEVELOPMENT_GUIDE.md`
+
+- Added "Package Structure and Imports" section with rules.
+- Added "Migrations" section explaining the runner and how to add new ones.
+- Added `pyproject.toml`, `app/__init__.py`, `app/apply_migrations.py` to
+  Important Files list.
+
+### Backwards compatibility
+
+- **Tests:** All 52 existing tests pass unchanged — they already used
+  `from app.xxx` imports.
+- **Running scripts directly:** `python -m app.run_analysis_pipeline` works
+  from project root. The old `python app/run_analysis_pipeline.py` from
+  `cwd=app/` will NOT work anymore (bare imports removed). Use the console
+  scripts or `-m` form instead.
+- **Docker:** `docker compose up -d` is unchanged. The migration tool connects
+  via `DATABASE_URL` like everything else.
+- **CI/CD:** Any CI that did `pip install -r requirements.txt` will still work
+  (the file still exists) but should migrate to `pip install -e .`.
+
+### Tests
+
+- `pip install -e .` succeeds cleanly on Python 3.12.
+- All imports verified: `from app.db`, `from app.services.*`, `from app.web_server`,
+  `from app.apply_migrations` all resolve.
+- `python3 -m unittest discover -s tests -v` — 52 tests, all pass.
+- `memeco-migrate --dry-run` correctly discovers 12 migration files in order
+  with deterministic checksums.
+
+---
+
 ## 2026-05-24 — Justify the TimescaleDB image: hypertables, retention, continuous aggregate
 
 ### Why
@@ -235,9 +354,10 @@ limit blast radius:
    `create_hypertable()` despite using `timescale/timescaledb:latest-pg15`.
    `token_prices` and `raw_api_snapshots` are the natural candidates.~~
    Done in `migrations/012_timescale_hypertables.sql` (2026-05-24).
-5. **Migration tool.** SQL files are still applied via `docker cp` + manual
+5. **Migration tool.** ~~SQL files are still applied via `docker cp` + manual
    `psql`. Adding Alembic / dbmate / a tiny `apply_migrations.py` would make
-   onboarding and deploys safer.
+   onboarding and deploys safer.~~
+   Done in `app/apply_migrations.py` + `memeco-migrate` (2026-05-24).
 6. **No retry/backoff on DexScreener / Helius.** Transient 429/5xx is silently
    swallowed and recorded as "no data." Add `tenacity` with jitter.
 
