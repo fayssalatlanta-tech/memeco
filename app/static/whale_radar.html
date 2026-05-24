@@ -1,0 +1,1501 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Whale Radar</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #05060a;
+      --panel: #0c0d14;
+      --panel-2: #11131d;
+      --panel-3: #171924;
+      --line: rgba(255, 255, 255, .10);
+      --line-strong: rgba(255, 255, 255, .16);
+      --text: #f7f7fb;
+      --muted: #9da4b8;
+      --soft: #c7cce0;
+      --green: #38d995;
+      --green-bg: rgba(56, 217, 149, .12);
+      --red: #ff6478;
+      --red-bg: rgba(255, 100, 120, .13);
+      --yellow: #ffd166;
+      --yellow-bg: rgba(255, 209, 102, .13);
+      --blue: #70a8ff;
+      --blue-bg: rgba(112, 168, 255, .13);
+      --purple: #bba7ff;
+      --purple-bg: rgba(187, 167, 255, .13);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+    }
+
+    a, button {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+      color: var(--text);
+      text-decoration: none;
+      padding: 0 12px;
+      font: inherit;
+      font-weight: 850;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button.primary {
+      background: #d7cdfd;
+      color: #070711;
+      border-color: rgba(215, 205, 253, .74);
+    }
+
+    button:hover, a:hover {
+      border-color: var(--line-strong);
+      background: var(--panel-3);
+    }
+
+    button.primary:hover {
+      background: #c5b8ff;
+      color: #05060a;
+    }
+
+    .shell {
+      width: min(1520px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 18px 0 38px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(300px, 1fr) auto;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #080910;
+      padding: 14px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      background: linear-gradient(135deg, #141722, #0a0b11);
+      color: var(--purple);
+      font-weight: 950;
+      font-size: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 2.6vw, 38px);
+      letter-spacing: 0;
+      line-height: 1.02;
+    }
+
+    .subtitle {
+      margin-top: 5px;
+      color: var(--muted);
+      font-weight: 650;
+      line-height: 1.35;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .overview {
+      display: grid;
+      grid-template-columns: minmax(340px, .9fr) minmax(0, 1.1fr);
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .panel, .metric, .status-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 16px 34px rgba(0, 0, 0, .28);
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-title {
+      font-size: 17px;
+      font-weight: 950;
+      letter-spacing: 0;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .status-card {
+      min-height: 98px;
+      padding: 13px;
+      background: var(--panel-2);
+    }
+
+    .status-title {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .status-value {
+      margin-top: 8px;
+      font-size: 18px;
+      font-weight: 950;
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+    }
+
+    .status-note {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      height: 100%;
+    }
+
+    .metric {
+      min-height: 108px;
+      padding: 14px;
+      background: var(--panel-2);
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .value {
+      margin-top: 9px;
+      font-size: 24px;
+      font-weight: 950;
+      line-height: 1.08;
+      overflow-wrap: anywhere;
+    }
+
+    .metric small {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-weight: 750;
+      line-height: 1.35;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(760px, 1fr) minmax(360px, 420px);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .alert-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 10px;
+    }
+
+    .alert-card {
+      border: 1px solid rgba(56, 217, 149, .26);
+      border-radius: 8px;
+      background: rgba(56, 217, 149, .08);
+      padding: 10px;
+      min-height: 150px;
+    }
+
+    .alert-card.review {
+      border-color: rgba(255, 209, 102, .34);
+      background: rgba(255, 209, 102, .08);
+    }
+
+    .alert-card.danger {
+      border-color: rgba(255, 100, 120, .34);
+      background: rgba(255, 100, 120, .08);
+    }
+
+    .confluence-card {
+      border: 1px solid rgba(112, 168, 255, .30);
+      border-radius: 8px;
+      background: rgba(112, 168, 255, .08);
+      padding: 10px;
+      min-height: 160px;
+    }
+
+    .wallet-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 8px;
+    }
+
+    .wallet-mini {
+      display: inline-flex;
+      min-height: 22px;
+      align-items: center;
+      border: 1px solid rgba(255, 255, 255, .10);
+      border-radius: 8px;
+      padding: 2px 7px;
+      color: var(--soft);
+      background: rgba(255, 255, 255, .045);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      max-height: 66vh;
+    }
+
+    table {
+      width: 100%;
+      min-width: 1180px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 13px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, .075);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #10121a;
+      color: rgba(247, 247, 251, .60);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    tbody tr:hover {
+      background: rgba(255, 255, 255, .035);
+    }
+
+    .wallet-row {
+      cursor: pointer;
+    }
+
+    .wallet-row.selected {
+      background: rgba(187, 167, 255, .09);
+      box-shadow: inset 3px 0 0 var(--purple);
+    }
+
+    .wallet-line {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+    }
+
+    .wallet-avatar {
+      width: 34px;
+      height: 34px;
+      flex: 0 0 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-3);
+      color: var(--purple);
+      font-weight: 950;
+      font-size: 12px;
+    }
+
+    .wallet {
+      max-width: 210px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      color: #d8ceff;
+      font-weight: 850;
+    }
+
+    .address-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .copy-btn {
+      min-height: 26px;
+      width: 28px;
+      flex: 0 0 28px;
+      padding: 0;
+      border-radius: 8px;
+      color: var(--soft);
+      background: rgba(255, 255, 255, .055);
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .external-link {
+      min-height: 26px;
+      width: 28px;
+      flex: 0 0 28px;
+      padding: 0;
+      border-radius: 8px;
+      color: #d8ceff;
+      background: rgba(187, 167, 255, .10);
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .copy-btn.copied {
+      color: #a9f5cd;
+      border-color: rgba(56, 217, 149, .45);
+      background: var(--green-bg);
+    }
+
+    .micro {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .badge {
+      display: inline-flex;
+      min-height: 24px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 900;
+      background: rgba(255, 255, 255, .06);
+      line-height: 1.2;
+    }
+
+    .badge.elite, .pill.buy, .pill.safe, .job-status.finished {
+      color: #a9f5cd;
+      border-color: rgba(56, 217, 149, .38);
+      background: var(--green-bg);
+    }
+
+    .badge.bot, .pill.sell, .pill.risky, .job-status.failed {
+      color: #ffb5be;
+      border-color: rgba(255, 100, 120, .38);
+      background: var(--red-bg);
+    }
+
+    .badge.watch, .pill.wait, .job-status.queued {
+      color: #ffe5a6;
+      border-color: rgba(255, 209, 102, .38);
+      background: var(--yellow-bg);
+    }
+
+    .pill.token-in, .pill.token-out, .job-status.running {
+      color: #d6ccff;
+      border-color: rgba(187, 167, 255, .38);
+      background: var(--purple-bg);
+    }
+
+    .pill.strong, .badge.strong {
+      color: #a9f5cd;
+      border-color: rgba(56, 217, 149, .44);
+      background: var(--green-bg);
+    }
+
+    .pill.noise, .badge.noise {
+      color: #aeb5c9;
+      border-color: rgba(255, 255, 255, .12);
+      background: rgba(255, 255, 255, .055);
+    }
+
+    .score-box {
+      display: grid;
+      gap: 5px;
+      min-width: 112px;
+    }
+
+    .score-main {
+      font-size: 22px;
+      font-weight: 950;
+      line-height: 1;
+    }
+
+    .bar {
+      height: 7px;
+      width: 100%;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .10);
+    }
+
+    .bar > span {
+      display: block;
+      height: 100%;
+      width: 0;
+      border-radius: inherit;
+      background: var(--green);
+    }
+
+    .money {
+      font-weight: 950;
+      color: var(--green);
+      white-space: nowrap;
+    }
+
+    .stack {
+      display: grid;
+      gap: 6px;
+    }
+
+    .stack-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .feed {
+      padding: 10px;
+    }
+
+    .feed-tools {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .filter-chip {
+      display: inline-flex;
+      max-width: 260px;
+      min-height: 28px;
+      align-items: center;
+      border: 1px solid rgba(187, 167, 255, .38);
+      border-radius: 8px;
+      padding: 3px 8px;
+      color: #d8ceff;
+      background: var(--purple-bg);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 12px;
+      font-weight: 850;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .clear-feed {
+      min-height: 28px;
+      padding: 0 9px;
+      font-size: 12px;
+      background: var(--panel-2);
+      color: var(--soft);
+    }
+
+    .live-feed-panel {
+      max-height: 560px;
+      overflow: hidden;
+    }
+
+    .live-feed-panel .panel-head {
+      padding: 12px 14px;
+    }
+
+    .live-feed-panel .panel-title {
+      font-size: 16px;
+    }
+
+    .live-feed-panel .subtitle {
+      max-width: 340px;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    .live-feed-scroll {
+      max-height: 424px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, .28) transparent;
+    }
+
+    .live-feed-scroll::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .live-feed-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, .22);
+      border-radius: 999px;
+    }
+
+    .signal-card, .job-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .signal-head, .job-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .pill, .job-status {
+      display: inline-flex;
+      min-height: 24px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 950;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+      white-space: nowrap;
+    }
+
+    .signal-token, .job-token {
+      min-width: 0;
+      font-size: 14px;
+      font-weight: 950;
+      overflow-wrap: anywhere;
+      line-height: 1.25;
+    }
+
+    .token-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .token-logo {
+      width: 32px;
+      height: 32px;
+      flex: 0 0 32px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      object-fit: cover;
+      background: var(--panel-3);
+    }
+
+    .token-fallback {
+      display: grid;
+      place-items: center;
+      color: var(--purple);
+      font-weight: 950;
+      font-size: 11px;
+    }
+
+    .signal-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .signal-stat {
+      border: 1px solid rgba(255, 255, 255, .075);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .035);
+      padding: 8px;
+      min-width: 0;
+    }
+
+    .signal-stat strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 12px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    .job-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      padding: 10px;
+    }
+
+    .job-card {
+      margin: 0;
+      min-height: 150px;
+    }
+
+    .empty {
+      padding: 22px;
+      color: var(--muted);
+      text-align: center;
+      font-weight: 750;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 1180px) {
+      .overview, .layout { grid-template-columns: 1fr; }
+      .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .job-grid, .alert-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 18px, 1520px); padding-top: 9px; }
+      .topbar { grid-template-columns: 1fr; }
+      .actions { justify-content: stretch; }
+      .actions > * { flex: 1 1 140px; }
+      .metric-grid, .status-grid, .job-grid, .alert-grid { grid-template-columns: 1fr; }
+      .panel-head { flex-direction: column; }
+      .signal-grid { grid-template-columns: 1fr; }
+      .live-feed-panel { max-height: 520px; }
+      .live-feed-scroll { max-height: 386px; }
+      .feed-tools { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="topbar">
+      <div class="brand">
+        <div class="brand-mark">WR</div>
+        <div>
+          <h1>Whale Radar</h1>
+          <div class="subtitle">Elite wallets, live whale signals, and automatic token analysis in one practical board.</div>
+        </div>
+      </div>
+      <div class="actions">
+        <a href="/">Dashboard</a>
+        <button id="refreshButton" class="primary" type="button">Refresh</button>
+        <button id="auditButton" type="button">Audit Wallets</button>
+        <button id="priceButton" type="button">Refresh Prices</button>
+        <button id="survivalButton" type="button">Survival</button>
+        <button id="webhookButton" type="button">Sync Webhook</button>
+      </div>
+    </section>
+
+    <section class="overview">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Operations</div>
+            <div class="subtitle">What the whale engine is doing now, and whether the webhook watcher is connected.</div>
+          </div>
+        </div>
+        <div class="status-grid">
+          <div class="status-card">
+            <div class="status-title">System action</div>
+            <div class="status-value" id="systemStatus">Ready.</div>
+            <div class="status-note">Use the action buttons to audit wallets, refresh prices, profile survival, or sync Helius webhook watchers.</div>
+          </div>
+          <div class="status-card">
+            <div class="status-title">Webhook watcher</div>
+            <div class="status-value" id="webhookStatus">Loading...</div>
+            <div class="status-note" id="webhookNote">Live Feed receives BUY/SELL events from watched elite wallets.</div>
+          </div>
+        </div>
+      </article>
+
+      <section class="metric-grid" id="summaryGrid"></section>
+    </section>
+
+    <section class="panel" style="margin-bottom:14px;">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">High Signal Alerts</div>
+          <div class="subtitle" id="alertSubtitle">Important BUY/TOKEN_IN events after noise filtering.</div>
+        </div>
+      </div>
+      <div class="alert-grid" id="highSignalAlerts"></div>
+    </section>
+
+    <section class="panel" style="margin-bottom:14px;">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Token Confluence</div>
+          <div class="subtitle" id="confluenceSubtitle">Tokens entered by multiple watched wallets in the same time window.</div>
+        </div>
+      </div>
+      <div class="alert-grid" id="confluenceAlerts"></div>
+    </section>
+
+    <section class="layout">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Elite Wallet Leaderboard</div>
+            <div class="subtitle">Wallets ranked by reliability, profit, survival behavior, and bot filtering.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Wallet</th>
+                <th>Identity</th>
+                <th>Reliability</th>
+                <th>Profit</th>
+                <th>Win Rate</th>
+                <th>Trades</th>
+                <th>ROI</th>
+                <th>Entry Speed</th>
+                <th>Survival</th>
+                <th>Behavior</th>
+                <th>Security</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboardRows"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <aside class="panel live-feed-panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Live Feed</div>
+            <div class="subtitle">New wallet movements captured by the Helius webhook. BUY/TOKEN_IN signals can queue token analysis automatically.</div>
+          </div>
+          <div class="feed-tools">
+            <span class="filter-chip" id="feedFilterLabel">All wallets</span>
+            <button class="clear-feed" id="clearFeedFilter" type="button">All</button>
+          </div>
+        </div>
+        <div class="feed live-feed-scroll" id="liveFeed"></div>
+      </aside>
+    </section>
+
+    <section class="panel" style="margin-top:14px;">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Whale Signal Auto Analysis</div>
+          <div class="subtitle">Tokens queued when a safe tracked wallet buys. This shows whether the system analyzed, skipped, or failed the token.</div>
+        </div>
+      </div>
+      <div class="job-grid" id="signalJobs"></div>
+    </section>
+  </main>
+
+  <script>
+    const summaryGrid = document.querySelector("#summaryGrid");
+    const leaderboardRows = document.querySelector("#leaderboardRows");
+    const liveFeed = document.querySelector("#liveFeed");
+    const highSignalAlerts = document.querySelector("#highSignalAlerts");
+    const alertSubtitle = document.querySelector("#alertSubtitle");
+    const confluenceAlerts = document.querySelector("#confluenceAlerts");
+    const confluenceSubtitle = document.querySelector("#confluenceSubtitle");
+    const signalJobs = document.querySelector("#signalJobs");
+    const refreshButton = document.querySelector("#refreshButton");
+    const auditButton = document.querySelector("#auditButton");
+    const priceButton = document.querySelector("#priceButton");
+    const survivalButton = document.querySelector("#survivalButton");
+    const webhookButton = document.querySelector("#webhookButton");
+    const systemStatus = document.querySelector("#systemStatus");
+    const webhookStatus = document.querySelector("#webhookStatus");
+    const webhookNote = document.querySelector("#webhookNote");
+    const feedFilterLabel = document.querySelector("#feedFilterLabel");
+    const clearFeedFilter = document.querySelector("#clearFeedFilter");
+    let selectedWallet = null;
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function numberOrNull(value) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number : null;
+    }
+
+    function formatNumber(value, digits = 2) {
+      const number = numberOrNull(value);
+      if (number === null) return "N/A";
+      return number.toLocaleString(undefined, {
+        maximumFractionDigits: digits,
+        minimumFractionDigits: number !== 0 && Math.abs(number) < 10 ? Math.min(digits, 2) : 0,
+      });
+    }
+
+    function money(value, suffix = "") {
+      const number = numberOrNull(value);
+      if (number === null) return "N/A";
+      return `${formatNumber(number, number >= 10 ? 2 : 4)}${suffix}`;
+    }
+
+    function percent(value) {
+      const number = numberOrNull(value);
+      if (number === null) return "N/A";
+      return `${formatNumber(number, 2)}%`;
+    }
+
+    function shortWallet(address) {
+      if (!address) return "N/A";
+      return `${address.slice(0, 5)}...${address.slice(-5)}`;
+    }
+
+    function shortAddress(address) {
+      if (!address) return "N/A";
+      return `${address.slice(0, 6)}...${address.slice(-6)}`;
+    }
+
+    function initials(address) {
+      if (!address) return "NA";
+      return `${address.slice(0, 2)}${address.slice(-2)}`.toUpperCase();
+    }
+
+    function badgeClass(label, botFlag) {
+      if (botFlag) return "bot";
+      if (label === "ELITE_SMART_MONEY") return "elite";
+      if (label === "WATCHLIST_CANDIDATE") return "watch";
+      return "";
+    }
+
+    function securityClass(level) {
+      if (level === "SAFE_TO_WATCH") return "elite";
+      if (level === "RISKY" || level === "INSIDER_RISK") return "bot";
+      return "watch";
+    }
+
+    function signalTypeClass(type) {
+      const normalized = String(type || "").toUpperCase();
+      if (normalized === "BUY") return "buy";
+      if (normalized === "SELL") return "sell";
+      if (normalized === "TOKEN_IN") return "token-in";
+      if (normalized === "TOKEN_OUT") return "token-out";
+      return "wait";
+    }
+
+    function jobStatusClass(status) {
+      const normalized = String(status || "").toLowerCase();
+      if (normalized === "finished") return "finished";
+      if (normalized === "failed") return "failed";
+      if (normalized === "running") return "running";
+      return "queued";
+    }
+
+    function timeText(value) {
+      if (!value) return "N/A";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "N/A";
+      return date.toLocaleString();
+    }
+
+    function jsonList(value) {
+      if (Array.isArray(value)) return value;
+      if (typeof value !== "string" || !value.trim()) return [];
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function scoreWidth(value) {
+      const score = numberOrNull(value) ?? 0;
+      return Math.max(0, Math.min(100, score));
+    }
+
+    function copyButton(value, label = "Copy address") {
+      if (!value) return "";
+      return `<button class="copy-btn" type="button" data-copy="${escapeHtml(value)}" title="${escapeHtml(label)}">⧉</button>`;
+    }
+
+    function solscanWalletLink(walletAddress) {
+      if (!walletAddress) return "";
+      return `
+        <a
+          class="external-link"
+          href="https://solscan.io/account/${escapeHtml(walletAddress)}"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open wallet on Solscan"
+        >↗</a>
+      `;
+    }
+
+    function walletDetailLink(walletAddress) {
+      if (!walletAddress) return "";
+      return `<a class="external-link" href="/wallet?wallet=${encodeURIComponent(walletAddress)}" title="Open wallet detail">W</a>`;
+    }
+
+    function tokenLogo(signal) {
+      const symbol = String(signal.token_symbol || signal.token_name || "?").slice(0, 2).toUpperCase();
+      if (!signal.logo_url) {
+        return `<span class="token-logo token-fallback">${escapeHtml(symbol)}</span>`;
+      }
+      return `
+        <img
+          class="token-logo"
+          src="${escapeHtml(signal.logo_url)}"
+          alt=""
+          referrerpolicy="no-referrer"
+          onerror="this.replaceWith(Object.assign(document.createElement('span'), { className: 'token-logo token-fallback', textContent: '${escapeHtml(symbol)}' }))"
+        >
+      `;
+    }
+
+    function tokenDetailLink(signal) {
+      if (!signal.decision_run_id || !signal.decision_token_id) return "";
+      const url = `/token?run_id=${encodeURIComponent(signal.decision_run_id)}&token_id=${encodeURIComponent(signal.decision_token_id)}`;
+      return `<a class="external-link" href="${url}" title="Open token detail">T</a>`;
+    }
+
+    function tokenLogoFromFields(symbolValue, nameValue, logoUrl) {
+      const symbol = String(symbolValue || nameValue || "?").slice(0, 2).toUpperCase();
+      if (!logoUrl) {
+        return `<span class="token-logo token-fallback">${escapeHtml(symbol)}</span>`;
+      }
+      return `
+        <img
+          class="token-logo"
+          src="${escapeHtml(logoUrl)}"
+          alt=""
+          referrerpolicy="no-referrer"
+          onerror="this.replaceWith(Object.assign(document.createElement('span'), { className: 'token-logo token-fallback', textContent: '${escapeHtml(symbol)}' }))"
+        >
+      `;
+    }
+
+    async function copyText(value, button) {
+      if (!value) return;
+      try {
+        await navigator.clipboard.writeText(value);
+      } catch (_) {
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+      if (button) {
+        button.classList.add("copied");
+        button.textContent = "✓";
+        setTimeout(() => {
+          button.classList.remove("copied");
+          button.textContent = "⧉";
+        }, 900);
+      }
+    }
+
+    function signalQuality(signal) {
+      const type = String(signal.signal_type || "").toUpperCase();
+      const amount = numberOrNull(signal.amount_sol) ?? 0;
+      const score10 = numberOrNull(signal.reliability_score_10) ?? ((numberOrNull(signal.reliability_score) ?? 0) / 10);
+      const security = String(signal.security_level || "UNPROVEN");
+
+      if (!["BUY", "TOKEN_IN"].includes(type)) {
+        return { label: "ACTIVITY", className: "wait", reason: "Not a buy signal" };
+      }
+      if (amount > 0 && amount < 0.1) {
+        return { label: "LOW_VALUE_NOISE", className: "noise", reason: "Small value movement" };
+      }
+      if (security === "SAFE_TO_WATCH" && score10 >= 5 && amount >= 0.5) {
+        return { label: "WHALE_ENTRY", className: "strong", reason: "Safe wallet with meaningful size" };
+      }
+      if (score10 >= 5) {
+        return { label: "SMART_WALLET_ENTRY", className: "strong", reason: "Reliable tracked wallet" };
+      }
+      return { label: "WATCH", className: "wait", reason: "Needs review" };
+    }
+
+    function decisionBadge(signal) {
+      if (!signal.final_watchlist_status) return `<span class="badge watch">NOT_ANALYZED</span>`;
+      const status = String(signal.final_watchlist_status);
+      const cls = signal.final_watchlist_pass ? "elite" : (status.includes("REJECT") ? "bot" : "watch");
+      return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
+    }
+
+    function renderWalletMinis(addresses) {
+      const wallets = Array.isArray(addresses) ? addresses.slice(0, 5) : [];
+      return wallets.map((address) => `
+        <span class="wallet-mini" title="${escapeHtml(address)}">${escapeHtml(shortWallet(address))}</span>
+      `).join("");
+    }
+
+    function renderSummary(data) {
+      const summary = data.summary || {};
+      const shadow = data.shadow_performance || {};
+      const avgScore = numberOrNull(summary.avg_reliability_score) ?? 0;
+      const shadowWins = Number(shadow.winning_trade_count || 0);
+      const shadowTrades = Number(shadow.tracked_trade_count || 0);
+      const cards = [
+        ["Elite", summary.elite_count ?? 0, "Approved smart-money wallets"],
+        ["Tracked", summary.wallet_count ?? 0, "All wallets stored in radar"],
+        ["Safe", summary.safe_to_watch_count ?? 0, "Passed survival/security checks"],
+        ["Risky", summary.risky_survival_count ?? 0, "Needs caution before copying"],
+        ["Avg score", `${money(avgScore / 10)}/10`, "Reliability after scoring"],
+        ["Shadow 24h", money(shadow.shadow_profit_sol, " SOL"), `${shadowWins}/${shadowTrades} profitable tracked trades`],
+      ];
+
+      summaryGrid.innerHTML = cards.map(([label, value, note]) => `
+        <article class="metric">
+          <div class="label">${escapeHtml(label)}</div>
+          <div class="value">${escapeHtml(value)}</div>
+          <small>${escapeHtml(note)}</small>
+        </article>
+      `).join("");
+    }
+
+    function renderLeaderboard(rows) {
+      if (!rows.length) {
+        leaderboardRows.innerHTML = `<tr><td class="empty" colspan="11">No elite wallets discovered yet. Run whale discovery after wallet intelligence has PnL data.</td></tr>`;
+        return;
+      }
+
+      leaderboardRows.innerHTML = rows.map((row) => {
+        const score100 = numberOrNull(row.reliability_score) ?? 0;
+        const score10 = numberOrNull(row.reliability_score_10) ?? (score100 / 10);
+        const favorites = jsonList(row.favorite_token_symbols).slice(0, 3).join(", ");
+        return `
+          <tr class="wallet-row ${selectedWallet === row.wallet_address ? "selected" : ""}" data-wallet="${escapeHtml(row.wallet_address)}">
+            <td>
+              <div class="wallet-line">
+                <div class="wallet-avatar">${escapeHtml(initials(row.wallet_address))}</div>
+                <div>
+                  <div class="address-actions">
+                    <div class="wallet" title="${escapeHtml(row.wallet_address)}">${escapeHtml(shortWallet(row.wallet_address))}</div>
+                    ${copyButton(row.wallet_address, "Copy wallet address")}
+                    ${walletDetailLink(row.wallet_address)}
+                    ${solscanWalletLink(row.wallet_address)}
+                  </div>
+                  <div class="micro">Seen ${escapeHtml(timeText(row.first_discovered_at))}</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="stack">
+                <span class="badge ${badgeClass(row.label, row.bot_flag)}">${escapeHtml(row.label || "UNKNOWN")}</span>
+                <div class="micro">${escapeHtml(row.bot_flag ? "Bot-excluded" : "Human-review candidate")}</div>
+              </div>
+            </td>
+            <td>
+              <div class="score-box">
+                <div class="score-main">${escapeHtml(money(score10))}/10</div>
+                <div class="bar"><span style="width:${scoreWidth(score100)}%"></span></div>
+                <div class="micro">${escapeHtml(money(score100))}/100</div>
+              </div>
+            </td>
+            <td>
+              <div class="money">${escapeHtml(money(row.total_profit_sol, " SOL"))}</div>
+              <div class="micro">30d ${escapeHtml(money(row.total_profit_30d_sol, " SOL"))}</div>
+            </td>
+            <td>${escapeHtml(percent(row.win_rate_percent))}</td>
+            <td>
+              <strong>${escapeHtml(row.trade_count ?? 0)}</strong>
+              <div class="micro">Wins ${escapeHtml(row.profitable_trade_count ?? 0)}</div>
+            </td>
+            <td>${escapeHtml(percent(row.avg_roi_percent))}</td>
+            <td>
+              ${escapeHtml(row.avg_minutes_after_launch === null || row.avg_minutes_after_launch === undefined ? "N/A" : `${money(row.avg_minutes_after_launch)}m`)}
+              <div class="micro">After launch</div>
+            </td>
+            <td>
+              <div class="stack">
+                <span class="badge ${securityClass(row.security_level)}">${escapeHtml(row.survival_rate_percent === null || row.survival_rate_percent === undefined ? "N/A" : percent(row.survival_rate_percent))}</span>
+                <div class="micro">Rugs ${escapeHtml(row.rugged_trade_count ?? "N/A")} | Ladder ${escapeHtml(money(row.laddering_score))}</div>
+              </div>
+            </td>
+            <td>
+              <div class="stack-row">
+                <span class="badge watch">${escapeHtml(row.whale_style || "UNKNOWN")}</span>
+                <span class="badge">${escapeHtml(row.exit_style || "UNKNOWN")}</span>
+              </div>
+              <div class="micro">${escapeHtml(favorites ? `Likes ${favorites}` : "No favorite sector yet")}</div>
+            </td>
+            <td><span class="badge ${securityClass(row.security_level)}">${escapeHtml(row.security_level || "UNKNOWN")}</span></td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function renderFeed(signals) {
+      feedFilterLabel.textContent = selectedWallet ? shortWallet(selectedWallet) : "All wallets";
+      clearFeedFilter.style.display = selectedWallet ? "inline-flex" : "none";
+
+      if (!signals.length) {
+        liveFeed.innerHTML = selectedWallet
+          ? `<div class="empty">No captured movements for this wallet in the current feed window.</div>`
+          : `<div class="empty">No live whale signals yet. Sync webhook first, then Helius will push wallet events here.</div>`;
+        return;
+      }
+
+      liveFeed.innerHTML = signals.map((signal) => {
+        const type = String(signal.signal_type || "SIGNAL").toUpperCase();
+        const token = signal.token_symbol || signal.token_name || "Unknown token";
+        const score10 = numberOrNull(signal.reliability_score_10) ?? ((numberOrNull(signal.reliability_score) ?? 0) / 10);
+        const quality = signalQuality(signal);
+        return `
+          <article class="signal-card">
+            <div class="signal-head">
+              <div class="token-line">
+                ${tokenLogo(signal)}
+                <div>
+                <span class="pill ${signalTypeClass(type)}">${escapeHtml(type)}</span>
+                <span class="pill ${quality.className}">${escapeHtml(quality.label)}</span>
+                <div class="signal-token">${escapeHtml(token)}</div>
+                <div class="address-actions micro">
+                  <span title="${escapeHtml(signal.token_address)}">${escapeHtml(shortAddress(signal.token_address))}</span>
+                  ${copyButton(signal.token_address, "Copy token address")}
+                  ${tokenDetailLink(signal)}
+                </div>
+                </div>
+              </div>
+              <div class="micro">${escapeHtml(timeText(signal.signal_at))}</div>
+            </div>
+            <div class="signal-grid">
+              <div class="signal-stat">
+                <div class="label">Wallet</div>
+                <div class="address-actions">
+                  <strong title="${escapeHtml(signal.wallet_address)}">${escapeHtml(shortWallet(signal.wallet_address))}</strong>
+                  ${copyButton(signal.wallet_address, "Copy wallet address")}
+                  ${walletDetailLink(signal.wallet_address)}
+                  ${solscanWalletLink(signal.wallet_address)}
+                </div>
+              </div>
+              <div class="signal-stat">
+                <div class="label">Amount</div>
+                <strong>${escapeHtml(money(signal.amount_sol, " SOL"))}</strong>
+              </div>
+              <div class="signal-stat">
+                <div class="label">Reliability</div>
+                <strong>${escapeHtml(money(score10))}/10</strong>
+              </div>
+              <div class="signal-stat">
+                <div class="label">Source</div>
+                <strong>${escapeHtml(signal.source || "webhook")}</strong>
+              </div>
+              <div class="signal-stat">
+                <div class="label">Decision</div>
+                <strong>${decisionBadge(signal)}</strong>
+              </div>
+              <div class="signal-stat">
+                <div class="label">Why</div>
+                <strong>${escapeHtml(quality.reason)}</strong>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderHighSignalAlerts(alerts, settings) {
+      const minSol = settings?.alert_min_amount_sol ?? 0.1;
+      const minScore = settings?.alert_min_score_10 ?? 5;
+      alertSubtitle.textContent = `Filtered BUY/TOKEN_IN events: min ${minSol} SOL, min ${minScore}/10 score, excluding SOL/USDC/USDT noise.`;
+
+      if (!alerts.length) {
+        highSignalAlerts.innerHTML = `<div class="empty">No high signal alerts yet. The raw Live Feed may still contain small movements.</div>`;
+        return;
+      }
+
+      highSignalAlerts.innerHTML = alerts.map((signal) => {
+        const token = signal.token_symbol || signal.token_name || "Unknown token";
+        const score10 = numberOrNull(signal.reliability_score_10) ?? ((numberOrNull(signal.reliability_score) ?? 0) / 10);
+        const quality = signalQuality(signal);
+        const status = String(signal.final_watchlist_status || "");
+        const cardClass = status.includes("REJECT") ? "danger" : (!status ? "review" : "");
+        return `
+          <article class="alert-card ${cardClass}">
+            <div class="signal-head">
+              <div class="token-line">
+                ${tokenLogo(signal)}
+                <div>
+                  <span class="pill ${quality.className}">${escapeHtml(quality.label)}</span>
+                  <div class="signal-token">${escapeHtml(token)}</div>
+                  <div class="address-actions micro">
+                    <span title="${escapeHtml(signal.token_address)}">${escapeHtml(shortAddress(signal.token_address))}</span>
+                    ${copyButton(signal.token_address, "Copy token address")}
+                    ${tokenDetailLink(signal)}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="stack">
+              <div class="stack-row">
+                <span class="badge strong">${escapeHtml(money(signal.amount_sol, " SOL"))}</span>
+                <span class="badge">${escapeHtml(money(score10))}/10</span>
+              </div>
+              <div class="address-actions micro">
+                <span title="${escapeHtml(signal.wallet_address)}">${escapeHtml(shortWallet(signal.wallet_address))}</span>
+                ${copyButton(signal.wallet_address, "Copy wallet address")}
+                ${walletDetailLink(signal.wallet_address)}
+                ${solscanWalletLink(signal.wallet_address)}
+              </div>
+              ${decisionBadge(signal)}
+              <div class="micro">${escapeHtml(timeText(signal.signal_at))}</div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderConfluenceAlerts(alerts, settings) {
+      const minWallets = settings?.confluence_min_wallets ?? 2;
+      const windowHours = settings?.confluence_window_hours ?? 24;
+      confluenceSubtitle.textContent = `Shows tokens bought by at least ${minWallets} watched wallets within ${windowHours}h after noise filtering.`;
+
+      if (!alerts.length) {
+        confluenceAlerts.innerHTML = `<div class="empty">No token confluence yet. This stays empty until multiple watched wallets enter the same non-noise token.</div>`;
+        return;
+      }
+
+      confluenceAlerts.innerHTML = alerts.map((alert) => {
+        const token = alert.token_symbol || alert.token_name || "Unknown token";
+        const detailSignal = {
+          decision_run_id: alert.decision_run_id,
+          decision_token_id: alert.decision_token_id,
+          final_watchlist_status: alert.final_watchlist_status,
+          final_watchlist_pass: alert.final_watchlist_pass,
+        };
+        return `
+          <article class="confluence-card">
+            <div class="signal-head">
+              <div class="token-line">
+                ${tokenLogoFromFields(alert.token_symbol, alert.token_name, alert.logo_url)}
+                <div>
+                  <span class="pill token-in">MULTI_WALLET</span>
+                  <div class="signal-token">${escapeHtml(token)}</div>
+                  <div class="address-actions micro">
+                    <span title="${escapeHtml(alert.token_address)}">${escapeHtml(shortAddress(alert.token_address))}</span>
+                    ${copyButton(alert.token_address, "Copy token address")}
+                    ${tokenDetailLink(alert)}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="stack">
+              <div class="stack-row">
+                <span class="badge strong">${escapeHtml(alert.wallet_count)} wallets</span>
+                <span class="badge">${escapeHtml(money(alert.total_amount_sol, " SOL"))}</span>
+                <span class="badge">${escapeHtml(money(alert.avg_reliability_score_10))}/10 avg</span>
+              </div>
+              ${decisionBadge(detailSignal)}
+              <div class="wallet-strip">${renderWalletMinis(alert.wallet_addresses)}</div>
+              <div class="micro">Latest ${escapeHtml(timeText(alert.latest_signal_at))}</div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderSignalJobs(jobs) {
+      if (!jobs.length) {
+        signalJobs.innerHTML = `<div class="empty">No whale-triggered token analysis jobs yet. When a safe tracked wallet buys a new token, it will appear here.</div>`;
+        return;
+      }
+
+      signalJobs.innerHTML = jobs.map((job) => {
+        const status = String(job.status || "QUEUED").toUpperCase();
+        const statusClass = jobStatusClass(status);
+        const result = job.final_watchlist_status || job.reason || job.error_message || "Pending";
+        return `
+          <article class="job-card">
+            <div class="job-head">
+              <div>
+                <span class="job-status ${statusClass}">${escapeHtml(status)}</span>
+                <div class="job-token" title="${escapeHtml(job.token_address)}">${escapeHtml(shortWallet(job.token_address))}</div>
+              </div>
+              <div class="micro">${escapeHtml(timeText(job.created_at))}</div>
+            </div>
+            <div class="signal-grid">
+              <div class="signal-stat">
+                <div class="label">Wallet</div>
+                <strong title="${escapeHtml(job.wallet_address)}">${escapeHtml(shortWallet(job.wallet_address))}</strong>
+              </div>
+              <div class="signal-stat">
+                <div class="label">Signal</div>
+                <strong>${escapeHtml(job.signal_type || "N/A")}</strong>
+              </div>
+            </div>
+            <div class="micro" style="margin-top:10px;">${escapeHtml(result)}</div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    async function loadRadar() {
+      const params = new URLSearchParams({ limit: selectedWallet ? "300" : "80" });
+      if (selectedWallet) params.set("wallet", selectedWallet);
+      const response = await fetch(`/api/whale-radar?${params.toString()}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      renderSummary(data);
+      renderLeaderboard(data.leaderboard || []);
+      renderHighSignalAlerts(data.high_signal_alerts || [], data.signal_settings || {});
+      renderConfluenceAlerts(data.confluence_alerts || [], data.signal_settings || {});
+      renderFeed(data.live_signals || []);
+      renderSignalJobs(data.signal_jobs || []);
+
+      const webhook = data.webhook;
+      if (webhook) {
+        webhookStatus.textContent = `${webhook.status || "UNKNOWN"} | ${webhook.watched_wallets || 0} wallets`;
+        webhookNote.textContent = webhook.last_error
+          ? `Last error: ${webhook.last_error}`
+          : `Updated ${timeText(webhook.updated_at)}. Active: ${webhook.active ? "yes" : "no"}.`;
+      } else {
+        webhookStatus.textContent = "Not configured";
+        webhookNote.textContent = "Set Helius webhook credentials and run Sync Webhook.";
+      }
+    }
+
+    leaderboardRows.addEventListener("click", (event) => {
+      const copyTarget = event.target.closest("[data-copy]");
+      if (copyTarget) {
+        event.stopPropagation();
+        copyText(copyTarget.dataset.copy, copyTarget);
+        return;
+      }
+
+      const row = event.target.closest(".wallet-row");
+      if (!row) return;
+      selectedWallet = row.dataset.wallet || null;
+      systemStatus.textContent = selectedWallet
+        ? `Showing Live Feed movements for ${shortWallet(selectedWallet)}.`
+        : "Ready.";
+      loadRadar().catch((error) => {
+        systemStatus.textContent = `Wallet feed load failed: ${error.message}`;
+      });
+    });
+
+    liveFeed.addEventListener("click", (event) => {
+      const copyTarget = event.target.closest("[data-copy]");
+      if (!copyTarget) return;
+      copyText(copyTarget.dataset.copy, copyTarget);
+    });
+
+    highSignalAlerts.addEventListener("click", (event) => {
+      const copyTarget = event.target.closest("[data-copy]");
+      if (!copyTarget) return;
+      copyText(copyTarget.dataset.copy, copyTarget);
+    });
+
+    confluenceAlerts.addEventListener("click", (event) => {
+      const copyTarget = event.target.closest("[data-copy]");
+      if (!copyTarget) return;
+      copyText(copyTarget.dataset.copy, copyTarget);
+    });
+
+    signalJobs.addEventListener("click", (event) => {
+      const copyTarget = event.target.closest("[data-copy]");
+      if (!copyTarget) return;
+      copyText(copyTarget.dataset.copy, copyTarget);
+    });
+
+    clearFeedFilter.addEventListener("click", () => {
+      selectedWallet = null;
+      systemStatus.textContent = "Showing Live Feed for all wallets.";
+      loadRadar().catch((error) => {
+        systemStatus.textContent = `Feed load failed: ${error.message}`;
+      });
+    });
+
+    refreshButton.addEventListener("click", () => {
+      systemStatus.textContent = "Refreshing dashboard...";
+      loadRadar()
+        .then(() => { systemStatus.textContent = "Dashboard refreshed."; })
+        .catch((error) => { systemStatus.textContent = `Refresh failed: ${error.message}`; });
+    });
+
+    async function runAction(path, label) {
+      systemStatus.textContent = `${label} running...`;
+      const response = await fetch(path, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+      systemStatus.textContent = `${label} done. ${JSON.stringify(data).slice(0, 180)}`;
+      await loadRadar();
+    }
+
+    auditButton.addEventListener("click", () => {
+      runAction("/api/whale-radar/audit", "Wallet audit").catch((error) => {
+        systemStatus.textContent = `Wallet audit failed: ${error.message}`;
+      });
+    });
+
+    priceButton.addEventListener("click", () => {
+      runAction("/api/whale-radar/refresh-prices", "Price refresh").catch((error) => {
+        systemStatus.textContent = `Price refresh failed: ${error.message}`;
+      });
+    });
+
+    survivalButton.addEventListener("click", () => {
+      runAction("/api/whale-radar/survival", "Survival profiling").catch((error) => {
+        systemStatus.textContent = `Survival profiling failed: ${error.message}`;
+      });
+    });
+
+    webhookButton.addEventListener("click", () => {
+      runAction("/api/whale-radar/sync-webhook", "Webhook sync").catch((error) => {
+        systemStatus.textContent = `Webhook sync failed: ${error.message}`;
+      });
+    });
+
+    loadRadar().catch((error) => {
+      summaryGrid.innerHTML = `<article class="metric"><div class="label">Error</div><div class="value">${escapeHtml(error.message)}</div><small>Check the local server and database connection.</small></article>`;
+      systemStatus.textContent = `Load failed: ${error.message}`;
+    });
+  </script>
+</body>
+</html>

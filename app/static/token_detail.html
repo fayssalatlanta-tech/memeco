@@ -1,0 +1,2223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Token Detail</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070711;
+      --bg-soft: #11121d;
+      --panel: rgba(22, 23, 36, .82);
+      --panel-solid: #ffffff;
+      --surface: #f7f8fc;
+      --text: #f8f7ff;
+      --text-dark: #111827;
+      --muted: #a4a8bd;
+      --muted-dark: #667085;
+      --line: rgba(255, 255, 255, .12);
+      --line-dark: #dfe3e8;
+      --pass: #16a36a;
+      --wait: #b7791f;
+      --reject: #c7362f;
+      --review: #344054;
+      --accent: #9b87ff;
+      --accent-strong: #7c63f2;
+      --cyan: #5eead4;
+      --shadow: 0 24px 70px rgba(0, 0, 0, .34);
+      --shadow-soft: 0 16px 36px rgba(0, 0, 0, .22);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 82% 12%, rgba(155, 135, 255, .24), transparent 32%),
+        radial-gradient(circle at 16% 18%, rgba(94, 234, 212, .10), transparent 28%),
+        linear-gradient(145deg, #070711 0%, #11121d 58%, #17182a 100%);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 7, 17, .72);
+      backdrop-filter: blur(18px);
+    }
+
+    .shell {
+      width: min(1280px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .back {
+      display: inline-flex;
+      align-items: center;
+      min-height: 38px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .06);
+      color: #d8ceff;
+      text-decoration: none;
+      font-weight: 800;
+      transition: border-color .16s ease, background .16s ease, transform .16s ease;
+    }
+
+    .back:hover {
+      transform: translateY(-1px);
+      border-color: rgba(155, 135, 255, .46);
+      background: rgba(255, 255, 255, .10);
+    }
+
+    .status-note {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 720;
+    }
+
+    main {
+      padding: 24px 0 42px;
+    }
+
+    .token-head {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 180px;
+      margin-bottom: 18px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background:
+        linear-gradient(145deg, rgba(22, 23, 36, .96), rgba(16, 17, 30, .82)),
+        radial-gradient(circle at 82% 42%, rgba(155, 135, 255, .30), transparent 34%);
+      box-shadow: var(--shadow-soft);
+      overflow: hidden;
+    }
+
+    .token-head::after {
+      content: "";
+      position: absolute;
+      right: -90px;
+      bottom: -130px;
+      width: 330px;
+      height: 330px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(94, 234, 212, .14), transparent 66%);
+      pointer-events: none;
+    }
+
+    .token-main {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .logo {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, .18);
+      background: rgba(255, 255, 255, .10);
+      object-fit: cover;
+      flex: 0 0 auto;
+      box-shadow: 0 18px 36px rgba(0, 0, 0, .26);
+    }
+
+    .logo-fallback {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      font-weight: 850;
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--text);
+      font-size: clamp(28px, 4vw, 46px);
+      line-height: 1;
+      font-weight: 880;
+      letter-spacing: 0;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    .dex-entry-note {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      margin-top: 8px;
+      padding: 4px 9px;
+      border: 1px solid rgba(94, 234, 212, .28);
+      border-radius: 8px;
+      background: rgba(94, 234, 212, .10);
+      color: #bff8ee;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .address-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      min-width: 0;
+    }
+
+    .address, .wallet-address {
+      color: var(--muted-dark);
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .address {
+      color: rgba(248, 247, 255, .70);
+      max-width: min(680px, 72vw);
+    }
+
+    .wallet-address {
+      max-width: 220px;
+    }
+
+    button, .external-link {
+      min-height: 32px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .07);
+      color: var(--text);
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: border-color .16s ease, background .16s ease, color .16s ease, transform .16s ease;
+    }
+
+    button:hover, .external-link:hover {
+      transform: translateY(-1px);
+      color: #070711;
+      border-color: rgba(94, 234, 212, .42);
+      background: var(--cyan);
+    }
+
+    button.copied {
+      color: #047857;
+      border-color: #abefc6;
+      background: #ecfdf3;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .metric, .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .metric {
+      min-height: 96px;
+      padding: 15px;
+      background: rgba(255, 255, 255, .075);
+      box-shadow: var(--shadow-soft);
+      backdrop-filter: blur(16px);
+      transition: transform .16s ease, border-color .16s ease, background .16s ease;
+    }
+
+    .metric:hover {
+      transform: translateY(-1px);
+      border-color: rgba(155, 135, 255, .34);
+      background: rgba(255, 255, 255, .10);
+    }
+
+    .metric.danger {
+      border-color: rgba(254, 205, 202, .34);
+      background: rgba(255, 91, 110, .12);
+    }
+
+    .metric.danger .metric-value {
+      color: #ffb4bd;
+    }
+
+    .metric.warning {
+      border-color: rgba(254, 223, 137, .34);
+      background: rgba(255, 209, 102, .12);
+    }
+
+    .metric.warning .metric-value {
+      color: #ffe2a8;
+    }
+
+    .metric.pass {
+      border-color: rgba(171, 239, 198, .34);
+      background: rgba(71, 229, 157, .12);
+    }
+
+    .metric.pass .metric-value {
+      color: #a9f5cd;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 820;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .metric-value {
+      margin-top: 8px;
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 850;
+      overflow-wrap: anywhere;
+    }
+
+    .token-actions {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .change-panel {
+      display: none;
+      margin-bottom: 18px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .055);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .change-panel.is-visible {
+      display: block;
+    }
+
+    .change-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .change-title {
+      font-weight: 860;
+    }
+
+    .change-note {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .change-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .change-item {
+      min-height: 72px;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, .10);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .05);
+    }
+
+    .change-item.good {
+      border-color: rgba(71, 229, 157, .34);
+      background: rgba(71, 229, 157, .10);
+    }
+
+    .change-item.warn {
+      border-color: rgba(255, 209, 102, .34);
+      background: rgba(255, 209, 102, .10);
+    }
+
+    .change-item.bad {
+      border-color: rgba(255, 91, 110, .34);
+      background: rgba(255, 91, 110, .10);
+    }
+
+    .change-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 820;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .change-value {
+      margin-top: 7px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 820;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 720;
+      background: #eef2f6;
+      color: var(--review);
+    }
+
+    .badge.pass {
+      background: #dcfae6;
+      color: var(--pass);
+    }
+
+    .badge.reject, .label.bad {
+      background: #fee4e2;
+      color: var(--reject);
+    }
+
+    .badge.wait, .label.warn {
+      background: #fef0c7;
+      color: var(--wait);
+    }
+
+    .panel {
+      overflow: auto;
+      margin-top: 18px;
+      background: rgba(247, 248, 252, .98);
+      border-color: rgba(255, 255, 255, .14);
+      color: var(--text-dark);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .panel-title {
+      padding: 16px 18px;
+      border-bottom: 1px solid rgba(15, 23, 42, .08);
+      background: linear-gradient(180deg, #ffffff, #f7f8fc);
+      color: #111827;
+      font-size: 15px;
+      font-weight: 860;
+    }
+
+    .decision-tree {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .decision-step {
+      border: 1px solid var(--line-dark);
+      border-left: 4px solid #98a2b3;
+      border-radius: 8px;
+      padding: 12px;
+      background: #ffffff;
+      min-height: 108px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .04);
+    }
+
+    .decision-step.pass {
+      border-color: #abefc6;
+      border-left-color: var(--pass);
+      background: #f6fef9;
+    }
+
+    .decision-step.warning, .decision-step.pending {
+      border-color: #fedf89;
+      border-left-color: var(--wait);
+      background: #fffcf5;
+    }
+
+    .decision-step.danger {
+      border-color: #fecdca;
+      border-left-color: var(--reject);
+      background: #fff6f5;
+    }
+
+    .decision-step-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .decision-step-title {
+      font-weight: 780;
+    }
+
+    .decision-step-status {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 760;
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .decision-step-reason {
+      color: #344054;
+      line-height: 1.45;
+      white-space: normal;
+    }
+
+    .decision-step-list {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      position: relative;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 25px;
+      top: 22px;
+      bottom: 22px;
+      width: 2px;
+      background: linear-gradient(180deg, #d9d6fe, #e4e7ec);
+    }
+
+    .timeline-item {
+      position: relative;
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr);
+      gap: 12px;
+      min-height: 72px;
+    }
+
+    .timeline-dot {
+      width: 16px;
+      height: 16px;
+      margin: 6px auto 0;
+      border: 3px solid #ffffff;
+      border-radius: 50%;
+      background: #98a2b3;
+      box-shadow: 0 0 0 1px #d0d5dd;
+      z-index: 1;
+    }
+
+    .timeline-item.pass .timeline-dot {
+      background: var(--pass);
+      box-shadow: 0 0 0 1px #abefc6;
+    }
+
+    .timeline-item.warning .timeline-dot {
+      background: var(--wait);
+      box-shadow: 0 0 0 1px #fedf89;
+    }
+
+    .timeline-item.danger .timeline-dot {
+      background: var(--reject);
+      box-shadow: 0 0 0 1px #fecdca;
+    }
+
+    .timeline-card {
+      border: 1px solid var(--line-dark);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 12px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .04);
+    }
+
+    .timeline-item.pass .timeline-card {
+      border-color: #abefc6;
+      background: #f6fef9;
+    }
+
+    .timeline-item.warning .timeline-card {
+      border-color: #fedf89;
+      background: #fffcf5;
+    }
+
+    .timeline-item.danger .timeline-card {
+      border-color: #fecdca;
+      background: #fff6f5;
+    }
+
+    .timeline-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
+    .timeline-title {
+      font-weight: 800;
+    }
+
+    .timeline-time {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 720;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .timeline-body {
+      color: #344054;
+      line-height: 1.45;
+      white-space: normal;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1120px;
+      background: #ffffff;
+    }
+
+    th, td {
+      padding: 11px 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(15, 23, 42, .08);
+      vertical-align: top;
+      white-space: nowrap;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #f3f5fb;
+      color: var(--muted-dark);
+      font-size: 12px;
+      font-weight: 820;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    tbody tr {
+      transition: background .16s ease;
+    }
+
+    tbody tr:hover {
+      background: #fbfcff;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr.suspicious-row {
+      background: #fff1f0;
+    }
+
+    tr.warning-row {
+      background: #fffbeb;
+    }
+
+    tr.suspicious-row td:first-child {
+      border-left: 4px solid var(--reject);
+    }
+
+    tr.warning-row td:first-child {
+      border-left: 4px solid var(--wait);
+    }
+
+    .wallet-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 250px;
+    }
+
+    .copy-small {
+      width: 28px;
+      min-height: 28px;
+      padding: 0;
+      flex: 0 0 auto;
+    }
+
+    .labels {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      max-width: 300px;
+      white-space: normal;
+    }
+
+    .label {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 2px 7px;
+      border-radius: 8px;
+      background: #eef2f6;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 720;
+    }
+
+    .label.good {
+      background: #dcfae6;
+      color: var(--pass);
+    }
+
+    .score-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-weight: 760;
+      background: #eef2f6;
+      color: #344054;
+    }
+
+    .score-badge.bad {
+      background: #fee4e2;
+      color: var(--reject);
+    }
+
+    .score-badge.warn {
+      background: #fef0c7;
+      color: var(--wait);
+    }
+
+    .probability-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 3px 9px;
+      border-radius: 8px;
+      font-weight: 800;
+      background: #eef2f6;
+      color: #344054;
+    }
+
+    .probability-badge.low {
+      background: #dcfae6;
+      color: var(--pass);
+    }
+
+    .probability-badge.medium {
+      background: #fef0c7;
+      color: var(--wait);
+    }
+
+    .probability-badge.high, .probability-badge.critical {
+      background: #fee4e2;
+      color: var(--reject);
+    }
+
+    .relationship-type {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-weight: 760;
+      background: #eef2f6;
+      color: #344054;
+    }
+
+    .relationship-type.suspicious {
+      background: #fee4e2;
+      color: var(--reject);
+    }
+
+    .profit-map {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 14px;
+      border-bottom: 1px solid rgba(15, 23, 42, .08);
+      background: #fafbfc;
+    }
+
+    .profit-stat {
+      border: 1px solid var(--line-dark);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 12px;
+      min-height: 72px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .04);
+    }
+
+    .profit-stat-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 720;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .profit-stat-value {
+      margin-top: 6px;
+      font-size: 21px;
+      font-weight: 820;
+    }
+
+    .profit-state {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 8px;
+      border-radius: 8px;
+      background: #eef2f6;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .profit-state.profit, .profit-state.unrealized {
+      background: #dcfae6;
+      color: var(--pass);
+    }
+
+    .profit-state.loss {
+      background: #fee4e2;
+      color: var(--reject);
+    }
+
+    .profit-state.unknown {
+      background: #f2f4f7;
+      color: var(--muted);
+    }
+
+    .empty {
+      padding: 24px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .reason {
+      white-space: normal;
+      min-width: 260px;
+      max-width: 440px;
+      color: #344054;
+    }
+
+    /* Full dark detail surface */
+    .panel {
+      background: rgba(10, 11, 22, .94);
+      border-color: var(--line);
+      color: var(--text);
+    }
+
+    .panel-title {
+      border-bottom-color: var(--line);
+      background: rgba(255, 255, 255, .04);
+      color: var(--text);
+    }
+
+    .decision-step,
+    .timeline-card,
+    .profit-stat,
+    table,
+    .profit-map {
+      background: rgba(255, 255, 255, .045);
+      color: var(--text);
+      border-color: rgba(255, 255, 255, .10);
+      box-shadow: none;
+    }
+
+    .decision-step.pass,
+    .timeline-item.pass .timeline-card {
+      border-color: rgba(71, 229, 157, .34);
+      background: rgba(71, 229, 157, .10);
+    }
+
+    .decision-step.warning,
+    .decision-step.pending,
+    .timeline-item.warning .timeline-card {
+      border-color: rgba(255, 209, 102, .34);
+      background: rgba(255, 209, 102, .10);
+    }
+
+    .decision-step.danger,
+    .timeline-item.danger .timeline-card {
+      border-color: rgba(255, 91, 110, .34);
+      background: rgba(255, 91, 110, .10);
+    }
+
+    .decision-step-status,
+    .decision-step-list,
+    .timeline-time,
+    .profit-stat-label,
+    .empty {
+      color: var(--muted);
+    }
+
+    .decision-step-reason,
+    .timeline-body,
+    .reason {
+      color: rgba(248, 247, 255, .78);
+    }
+
+    .timeline::before {
+      background: linear-gradient(180deg, rgba(187, 167, 255, .45), rgba(94, 234, 212, .22));
+    }
+
+    .timeline-dot {
+      border-color: #070711;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, .18);
+    }
+
+    th {
+      background: #0f101d;
+      color: rgba(248, 247, 255, .58);
+      border-bottom-color: var(--line);
+    }
+
+    td {
+      border-bottom-color: rgba(255, 255, 255, .075);
+    }
+
+    tbody tr:hover {
+      background: rgba(255, 255, 255, .045);
+    }
+
+    tr.suspicious-row {
+      background: rgba(255, 91, 110, .10);
+    }
+
+    tr.warning-row {
+      background: rgba(255, 209, 102, .10);
+    }
+
+    .address,
+    .wallet-address {
+      color: rgba(248, 247, 255, .70);
+    }
+
+    .badge,
+    .label,
+    .score-badge,
+    .probability-badge,
+    .relationship-type,
+    .profit-state {
+      border: 1px solid rgba(255, 255, 255, .12);
+      background: rgba(255, 255, 255, .07);
+      color: var(--text);
+    }
+
+    .badge.pass,
+    .label.good,
+    .probability-badge.low,
+    .profit-state.profit,
+    .profit-state.unrealized {
+      border-color: rgba(71, 229, 157, .34);
+      background: rgba(71, 229, 157, .12);
+      color: #a9f5cd;
+    }
+
+    .badge.wait,
+    .label.warn,
+    .score-badge.warn,
+    .probability-badge.medium {
+      border-color: rgba(255, 209, 102, .34);
+      background: rgba(255, 209, 102, .12);
+      color: #ffe2a8;
+    }
+
+    .badge.reject,
+    .label.bad,
+    .score-badge.bad,
+    .probability-badge.high,
+    .probability-badge.critical,
+    .relationship-type.suspicious,
+    .profit-state.loss {
+      border-color: rgba(255, 91, 110, .34);
+      background: rgba(255, 91, 110, .12);
+      color: #ffb4bd;
+    }
+
+    .profit-state.unknown {
+      color: var(--muted);
+    }
+
+    @media (max-width: 760px) {
+      .topbar, .token-head, .token-main {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .decision-tree {
+        grid-template-columns: 1fr;
+      }
+
+      .change-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .profit-map {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .address {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell topbar">
+      <a class="back" href="/">Back to dashboard</a>
+      <div class="status-note" id="status">Loading...</div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="token-head" id="tokenHead"></section>
+    <section class="grid" id="metrics"></section>
+    <section class="change-panel" id="changePanel">
+      <div class="change-head">
+        <div>
+          <div class="change-title">Change Signals</div>
+          <div class="change-note" id="changeNote">Changes from the latest refresh appear here.</div>
+        </div>
+      </div>
+      <div class="change-grid" id="changeGrid"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Token Timeline</div>
+      <div class="timeline" id="tokenTimeline"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Why Rejected?</div>
+      <div class="decision-tree" id="decisionTree"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Wallet Intelligence</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Wallet</th>
+            <th>Holder %</th>
+            <th>Labels</th>
+            <th>Label Reason</th>
+            <th>Score</th>
+            <th>Entry</th>
+            <th>From Launch</th>
+            <th>In</th>
+            <th>Out</th>
+            <th>Net</th>
+            <th>Txs</th>
+            <th>Funding Source</th>
+          </tr>
+        </thead>
+        <tbody id="walletRows"></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Early Buyer Profit Map</div>
+      <div class="profit-map" id="earlyBuyerSummary"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Wallet</th>
+            <th>Entry</th>
+            <th>From Launch</th>
+            <th>Status</th>
+            <th>Profit State</th>
+            <th>In</th>
+            <th>Out</th>
+            <th>Net</th>
+            <th>SOL Spent</th>
+            <th>SOL Received</th>
+            <th>Realized PnL</th>
+            <th>Labels</th>
+          </tr>
+        </thead>
+        <tbody id="earlyBuyerRows"></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Top Holders</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Wallet</th>
+            <th>Amount</th>
+            <th>Percent</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody id="holderRows"></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Wallet Relationships</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>From</th>
+            <th>To</th>
+            <th>Amount</th>
+            <th>Time</th>
+            <th>Signature</th>
+          </tr>
+        </thead>
+        <tbody id="relationshipRows"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    const statusEl = document.querySelector("#status");
+    const tokenHeadEl = document.querySelector("#tokenHead");
+    const metricsEl = document.querySelector("#metrics");
+    const changePanelEl = document.querySelector("#changePanel");
+    const changeGridEl = document.querySelector("#changeGrid");
+    const changeNoteEl = document.querySelector("#changeNote");
+    const tokenTimelineEl = document.querySelector("#tokenTimeline");
+    const decisionTreeEl = document.querySelector("#decisionTree");
+    const walletRowsEl = document.querySelector("#walletRows");
+    const earlyBuyerSummaryEl = document.querySelector("#earlyBuyerSummary");
+    const earlyBuyerRowsEl = document.querySelector("#earlyBuyerRows");
+    const holderRowsEl = document.querySelector("#holderRows");
+    const relationshipRowsEl = document.querySelector("#relationshipRows");
+    let currentToken = null;
+
+    function params() {
+      return new URLSearchParams(window.location.search);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function attr(value) {
+      return escapeHtml(value);
+    }
+
+    function formatDate(value) {
+      if (!value) return "N/A";
+      return new Date(value).toLocaleString();
+    }
+
+    function validDate(value) {
+      if (!value) return null;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function shortAddress(value) {
+      const text = String(value || "");
+      if (text.length <= 14) return text || "N/A";
+      return `${text.slice(0, 6)}...${text.slice(-4)}`;
+    }
+
+    function formatNumber(value, digits = 2) {
+      if (value === null || value === undefined || value === "") return "N/A";
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "N/A";
+      return number.toLocaleString(undefined, { maximumFractionDigits: digits });
+    }
+
+    function asNumeric(value) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number : null;
+    }
+
+    function formatPercent(value) {
+      if (value === null || value === undefined || value === "") return "N/A";
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "N/A";
+      return `${number.toFixed(2)}%`;
+    }
+
+    function formatDuration(seconds) {
+      if (seconds === null || seconds === undefined || seconds === "") return "N/A";
+      const value = Number(seconds);
+      if (!Number.isFinite(value)) return "N/A";
+      const absValue = Math.abs(value);
+      let label = "";
+
+      if (absValue < 60) {
+        label = `${Math.round(absValue)}s`;
+      } else if (absValue < 3600) {
+        label = `${Math.round(absValue / 60)}m`;
+      } else {
+        label = `${(absValue / 3600).toFixed(1)}h`;
+      }
+
+      return value < 0 ? `${label} before` : label;
+    }
+
+    function formatRelativeTime(value, origin) {
+      if (!value) return "N/A";
+      if (!origin) return formatDate(value);
+
+      const date = new Date(value);
+      const originDate = new Date(origin);
+
+      if (Number.isNaN(date.getTime()) || Number.isNaN(originDate.getTime())) {
+        return formatDate(value);
+      }
+
+      return formatDuration((date.getTime() - originDate.getTime()) / 1000);
+    }
+
+    function earliestWallet(wallets, predicate) {
+      const candidates = wallets
+        .filter((wallet) => wallet.first_entry_at && (!predicate || predicate(wallet)))
+        .sort((left, right) => new Date(left.first_entry_at) - new Date(right.first_entry_at));
+      const nonTruncated = candidates.filter((wallet) => {
+        const details = parseJson(wallet.details, {});
+        return !details.history_may_be_truncated;
+      });
+
+      return nonTruncated[0] || candidates[0] || null;
+    }
+
+    function earliestExitWallet(wallets, threshold = 0.65) {
+      const candidates = wallets
+        .filter((wallet) => {
+          const tokenIn = Number(wallet.total_token_in || 0);
+          const tokenOut = Number(wallet.total_token_out || 0);
+          const details = parseJson(wallet.details, {});
+          return details.first_exit_at && tokenIn > 0 && tokenOut / tokenIn >= threshold;
+        })
+        .sort((left, right) => {
+          const leftDetails = parseJson(left.details, {});
+          const rightDetails = parseJson(right.details, {});
+          return new Date(leftDetails.first_exit_at) - new Date(rightDetails.first_exit_at);
+        });
+      const nonTruncated = candidates.filter((wallet) => {
+        const details = parseJson(wallet.details, {});
+        return !details.history_may_be_truncated;
+      });
+
+      return nonTruncated[0] || candidates[0] || null;
+    }
+
+    function parseJson(value, fallback) {
+      if (!value) return fallback;
+      if (typeof value === "object") return value;
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        return fallback;
+      }
+    }
+
+    function badgeClass(status) {
+      if (!status) return "";
+      if (status.includes("PASS")) return "pass";
+      if (status.includes("REJECT")) return "reject";
+      if (status.includes("WAIT")) return "wait";
+      return "";
+    }
+
+    function labelClass(label) {
+      if (label === "SMART_WALLET") return "good";
+      if (["SNIPER", "FRESH_WALLET", "DUMPER", "DEV_RELATED", "BOT", "TOKEN_DISTRIBUTION", "SOL_FUNDER", "TOKEN_LINK", "SOL_LINK"].includes(label)) return "bad";
+      if (label === "WHALE") return "warn";
+      return "";
+    }
+
+    function metricClass(label, value) {
+      const text = String(value || "");
+
+      if (label === "Manipulation") {
+        if (text.includes("DANGER")) return "danger";
+        if (text.includes("WARNING") || text.includes("UNKNOWN")) return "warning";
+        if (text.includes("PASS")) return "pass";
+      }
+
+      if (label === "Final") {
+        if (text.includes("REJECT")) return "danger";
+        if (text.includes("WAIT") || text.includes("HIGH_RISK")) return "warning";
+        if (text.includes("PASS")) return "pass";
+      }
+
+      return "";
+    }
+
+    function walletRowClass(labels, score) {
+      const badLabels = ["SNIPER", "FRESH_WALLET", "DUMPER", "DEV_RELATED", "BOT"];
+      const numericScore = Number(score || 0);
+
+      if (labels.some((label) => badLabels.includes(label)) || numericScore <= -5) {
+        return "suspicious-row";
+      }
+
+      if (labels.includes("WHALE") || numericScore < 0) {
+        return "warning-row";
+      }
+
+      return "";
+    }
+
+    function scoreBadge(score) {
+      const numericScore = Number(score || 0);
+      const className = numericScore <= -5 ? "bad" : numericScore < 0 ? "warn" : "";
+      return `<span class="score-badge ${className}">${escapeHtml(score ?? "N/A")}</span>`;
+    }
+
+    function profitStateClass(state) {
+      const text = String(state || "UNKNOWN").toLowerCase();
+      if (["profit", "unrealized"].includes(text)) return text;
+      if (text === "loss") return "loss";
+      return "unknown";
+    }
+
+    function profitStateBadge(state) {
+      const text = String(state || "UNKNOWN");
+      return `<span class="profit-state ${profitStateClass(text)}">${escapeHtml(text)}</span>`;
+    }
+
+    function formatSol(value, digits = 4) {
+      if (value === null || value === undefined || value === "") return "N/A";
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "N/A";
+      return `${number.toLocaleString(undefined, { maximumFractionDigits: digits })} SOL`;
+    }
+
+    function relationshipClass(type) {
+      if (["SOL_FUNDER", "TOKEN_DISTRIBUTION", "TOKEN_LINK", "SOL_LINK"].includes(type)) {
+        return "suspicious";
+      }
+
+      return "";
+    }
+
+    function normalizeList(value) {
+      const parsed = parseJson(value, []);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+
+    function warningText(warning) {
+      if (!warning) return "";
+      if (typeof warning === "string") return warning;
+      if (typeof warning === "object") {
+        return [warning.name, warning.level, warning.message || warning.reason]
+          .filter(Boolean)
+          .join(" - ");
+      }
+
+      return String(warning);
+    }
+
+    function decisionTone(status, pass) {
+      const text = String(status || "");
+
+      if (
+        pass === false ||
+        text.includes("REJECT") ||
+        text.includes("DANGER")
+      ) return "danger";
+      if (text.includes("WAIT") || text.includes("WARNING") || text.includes("UNKNOWN") || text.includes("HIGH_RISK")) return "warning";
+      if (pass === true || text.includes("PASS")) return "pass";
+      if (!text || text === "PENDING") return "pending";
+
+      return "";
+    }
+
+    function passFromStatus(status) {
+      const text = String(status || "");
+      if (text.includes("PASS")) return true;
+      if (text.includes("REJECT") || text.includes("DANGER") || text.includes("HIGH_RISK")) return false;
+      return null;
+    }
+
+    function insiderProbabilityHtml(details) {
+      const score = Number(details.insider_probability_score ?? 0);
+      const level = String(details.insider_probability_level || "LOW");
+      const reasons = normalizeList(details.insider_probability_reasons);
+      const title = reasons.length ? reasons.join(" | ") : "No strong insider signal";
+      return `<span class="probability-badge ${level.toLowerCase()}" title="${attr(title)}">${score}/100 ${escapeHtml(level)}</span>`;
+    }
+
+    function liquidityTrapHtml(details) {
+      const status = String(details.liquidity_trap_status || "LIQUIDITY_TRAP_UNKNOWN");
+      const score = Number(details.liquidity_trap_score ?? 0);
+      const reason = details.liquidity_trap_reason || "";
+      const warnings = normalizeList(details.liquidity_trap_warnings);
+      const lpLock = details.lp_lock || {};
+      let level = "LOW";
+
+      if (status.includes("CRITICAL")) {
+        level = "CRITICAL";
+      } else if (status.includes("HIGH")) {
+        level = "HIGH";
+      } else if (status.includes("MEDIUM") || status.includes("UNKNOWN")) {
+        level = status.includes("UNKNOWN") ? "MEDIUM" : "MEDIUM";
+      }
+
+      const title = [reason, lpLock.lp_reason, ...warnings].filter(Boolean).join(" | ");
+      return `<span class="probability-badge ${level.toLowerCase()}" title="${attr(title)}">${score}/100 ${escapeHtml(level)}</span>`;
+    }
+
+    function devAuditHtml(details) {
+      const status = String(details.dev_audit_status || "DEV_UNKNOWN");
+      const sold = Number(details.dev_sold_token_amount || 0);
+      const out = Number(details.dev_total_token_out || 0);
+      const title = [
+        details.dev_audit_reason,
+        details.dev_wallet_address ? `Dev: ${details.dev_wallet_address}` : "",
+        `Sold: ${sold.toLocaleString()}`,
+        `Out: ${out.toLocaleString()}`,
+      ].filter(Boolean).join(" | ");
+      let level = "medium";
+
+      if (status === "DEV_HOLDING") level = "low";
+      if (["DEV_SOLD_PARTIAL", "DEV_SOLD_OUT", "DEV_TRANSFERRED_TOKENS", "DEV_NO_BALANCE"].includes(status)) level = "high";
+
+      return `<span class="probability-badge ${level}" title="${attr(title)}">${escapeHtml(status.replace("DEV_", ""))}</span>`;
+    }
+
+    function tokenSnapshot(token) {
+      const details = parseJson(token.details, {});
+      return {
+        token_address: token.token_address,
+        run_id: token.run_id,
+        token_id: token.token_id,
+        final_watchlist_status: token.final_watchlist_status || "",
+        final_watchlist_reason: token.final_watchlist_reason || "",
+        market_filter_status: token.market_filter_status || "",
+        contract_risk_status: token.contract_risk_status || "",
+        wallet_status: token.wallet_status || "",
+        cluster_status: token.cluster_status || "",
+        manipulation_status: token.manipulation_status || "",
+        manipulation_score: asNumeric(token.manipulation_score),
+        insider_probability_score: asNumeric(details.insider_probability_score),
+        insider_probability_level: details.insider_probability_level || "",
+        liquidity_trap_score: asNumeric(details.liquidity_trap_score),
+        liquidity_trap_status: details.liquidity_trap_status || "",
+        shadow_dev_score: asNumeric(details.shadow_dev_score),
+        dev_flow_status: details.dev_flow_status || "",
+        dev_proxy_dump_count: asNumeric(details.dev_proxy_dump_count),
+        dev_splitter_count: asNumeric(details.dev_splitter_count),
+        dev_audit_status: details.dev_audit_status || "",
+        dev_sold_token_amount: asNumeric(details.dev_sold_token_amount),
+        dev_total_token_out: asNumeric(details.dev_total_token_out),
+        liquidity_usd: asNumeric(details.liquidity_usd),
+        market_cap_usd: asNumeric(details.market_cap_usd),
+        dex_active_boosts: asNumeric(token.dex_active_boosts),
+        dex_paid_order_count: asNumeric(token.dex_paid_order_count),
+        updated_at: token.created_at || "",
+      };
+    }
+
+    function snapshotKey(tokenAddress) {
+      return `token-refresh-before:${tokenAddress}`;
+    }
+
+    function formatSnapshotValue(value) {
+      if (value === null || value === undefined || value === "") return "N/A";
+      if (typeof value === "number") return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      return String(value);
+    }
+
+    function changeTone(label, before, after) {
+      const riskIncreasingLabels = [
+        "Insider Probability",
+        "Liquidity Trap",
+        "Shadow Dev Score",
+        "Manipulation Score",
+        "Dev Sold",
+        "Dev Out",
+        "Proxy Dumps",
+        "Splitters",
+      ];
+      if (typeof before === "number" && typeof after === "number") {
+        if (after === before) return "";
+        const riskIncreasing = riskIncreasingLabels.includes(label);
+        return after > before ? (riskIncreasing ? "bad" : "good") : (riskIncreasing ? "good" : "warn");
+      }
+      const afterText = String(after || "");
+      if (afterText.includes("REJECT") || afterText.includes("DANGER") || afterText.includes("SOLD") || afterText.includes("DUMP")) return "bad";
+      if (afterText.includes("WARNING") || afterText.includes("WAIT") || afterText.includes("UNKNOWN") || afterText.includes("HIGH")) return "warn";
+      if (afterText.includes("PASS") || afterText.includes("LOW") || afterText.includes("HOLDING")) return "good";
+      return "";
+    }
+
+    function buildChanges(before, after) {
+      const fields = [
+        ["Final", "final_watchlist_status"],
+        ["Reason", "final_watchlist_reason"],
+        ["Insider Probability", "insider_probability_score"],
+        ["Insider Level", "insider_probability_level"],
+        ["Liquidity Trap", "liquidity_trap_score"],
+        ["Shadow Dev Score", "shadow_dev_score"],
+        ["Dev Flow", "dev_flow_status"],
+        ["Proxy Dumps", "dev_proxy_dump_count"],
+        ["Splitters", "dev_splitter_count"],
+        ["Dev Audit", "dev_audit_status"],
+        ["Dev Sold", "dev_sold_token_amount"],
+        ["Dev Out", "dev_total_token_out"],
+        ["Wallet", "wallet_status"],
+        ["Cluster", "cluster_status"],
+        ["Manipulation", "manipulation_status"],
+        ["Manipulation Score", "manipulation_score"],
+        ["Liquidity", "liquidity_usd"],
+        ["Market Cap", "market_cap_usd"],
+        ["DEX Boosts", "dex_active_boosts"],
+        ["DEX Orders", "dex_paid_order_count"],
+      ];
+
+      return fields
+        .map(([label, key]) => {
+          const beforeValue = before[key];
+          const afterValue = after[key];
+          if (JSON.stringify(beforeValue) === JSON.stringify(afterValue)) return null;
+          return {
+            label,
+            before: beforeValue,
+            after: afterValue,
+            tone: changeTone(label, beforeValue, afterValue),
+          };
+        })
+        .filter(Boolean);
+    }
+
+    function renderChangeSignals(token) {
+      const beforeRaw = localStorage.getItem(snapshotKey(token.token_address));
+      if (!beforeRaw) {
+        changePanelEl.classList.remove("is-visible");
+        changeGridEl.innerHTML = "";
+        return;
+      }
+
+      let before = null;
+      try {
+        before = JSON.parse(beforeRaw);
+      } catch (error) {
+        localStorage.removeItem(snapshotKey(token.token_address));
+        return;
+      }
+
+      const after = tokenSnapshot(token);
+      if (before.run_id === after.run_id) return;
+      const changes = buildChanges(before, after);
+      changePanelEl.classList.add("is-visible");
+      changeNoteEl.textContent = changes.length
+        ? `Compared run #${before.run_id || "old"} to run #${after.run_id || "new"}`
+        : `No important change detected after refresh. Run #${after.run_id || "new"} is current.`;
+      changeGridEl.innerHTML = changes.length
+        ? changes.slice(0, 9).map((change) => `
+          <article class="change-item ${change.tone}">
+            <div class="change-label">${escapeHtml(change.label)}</div>
+            <div class="change-value">${escapeHtml(formatSnapshotValue(change.before))} -> ${escapeHtml(formatSnapshotValue(change.after))}</div>
+          </article>
+        `).join("")
+        : `<article class="change-item good"><div class="change-label">Stable</div><div class="change-value">No key signal changed.</div></article>`;
+
+      localStorage.removeItem(snapshotKey(token.token_address));
+    }
+
+    function firstReason(...values) {
+      return values
+        .map((value) => String(value || "").trim())
+        .find(Boolean) || "No detailed reason stored yet.";
+    }
+
+    function renderDecisionTree(token) {
+      const details = parseJson(token.details, {});
+      const intelligenceReasons = normalizeList(details.intelligence_reasons);
+
+      const steps = [
+        {
+          title: "Market Filter",
+          status: token.market_filter_status || "PENDING",
+          pass: token.market_filter_pass,
+          reason: firstReason(details.market_filter_reason, token.final_watchlist_status === "WATCHLIST_REJECT_MARKET" ? token.final_watchlist_reason : ""),
+          warnings: normalizeList(details.market_warnings),
+        },
+        {
+          title: "Contract Risk",
+          status: token.contract_risk_status || "PENDING",
+          pass: token.contract_risk_pass,
+          reason: firstReason(details.contract_risk_reason, token.final_watchlist_status === "WATCHLIST_REJECT_CONTRACT" ? token.final_watchlist_reason : ""),
+          warnings: normalizeList(details.contract_warnings),
+        },
+        {
+          title: "Liquidity Filter",
+          status: details.liquidity_status || "PENDING",
+          pass: passFromStatus(details.liquidity_status),
+          reason: firstReason(details.liquidity_reason, token.final_watchlist_status === "WATCHLIST_REJECT_LIQUIDITY" ? token.final_watchlist_reason : ""),
+          warnings: normalizeList(details.liquidity_warnings),
+        },
+        {
+          title: "Liquidity Trap",
+          status: `${details.liquidity_trap_score ?? 0}/100 ${details.liquidity_trap_status || "LIQUIDITY_TRAP_UNKNOWN"}`,
+          pass: Number(details.liquidity_trap_score ?? 0) < 50,
+          reason: firstReason(details.liquidity_trap_reason, "No strong liquidity trap pattern detected"),
+          warnings: normalizeList(details.liquidity_trap_warnings),
+        },
+        {
+          title: "Wallet Analysis",
+          status: token.wallet_status || details.wallet_status || "PENDING",
+          pass: token.wallet_pass,
+          reason: firstReason(details.wallet_reason, token.final_watchlist_status === "WATCHLIST_REJECT_WALLET" ? token.final_watchlist_reason : ""),
+          warnings: normalizeList(details.wallet_warnings),
+        },
+        {
+          title: "Cluster Analysis",
+          status: token.cluster_status || details.cluster_status || "PENDING",
+          pass: token.cluster_pass,
+          reason: firstReason(details.cluster_reason, token.final_watchlist_status === "WATCHLIST_REJECT_CLUSTER" ? token.final_watchlist_reason : ""),
+          warnings: normalizeList(details.cluster_warnings),
+        },
+        {
+          title: "Wallet Manipulation",
+          status: token.manipulation_status || details.manipulation_status || "PENDING",
+          pass: token.manipulation_pass,
+          reason: firstReason(details.manipulation_reason, token.manipulation_reason, token.final_watchlist_status === "WATCHLIST_REJECT_MANIPULATION" ? token.final_watchlist_reason : ""),
+          warnings: normalizeList(details.manipulation_warnings),
+        },
+        {
+          title: "Dev Wallet Audit",
+          status: details.dev_audit_status || "DEV_UNKNOWN",
+          pass: details.dev_audit_pass,
+          reason: firstReason(details.dev_audit_reason, "Developer audit has no result yet"),
+          warnings: normalizeList(details.dev_audit_warnings),
+        },
+        {
+          title: "Dev Wallet Flow",
+          status: `${details.shadow_dev_score ?? 0}/100 ${details.dev_flow_status || "DEV_FLOW_UNKNOWN"}`,
+          pass: details.dev_flow_pass,
+          reason: firstReason(details.dev_flow_reason, "Developer flow analysis has no result yet"),
+          warnings: normalizeList(details.dev_flow_warnings),
+        },
+        {
+          title: "Wallet Intelligence",
+          status: details.intelligence_status || "PENDING",
+          pass: passFromStatus(details.intelligence_status),
+          reason: firstReason(intelligenceReasons.join(" | ")),
+          warnings: intelligenceReasons,
+        },
+        {
+          title: "Insider Probability",
+          status: `${details.insider_probability_score ?? 0}/100 ${details.insider_probability_level || "LOW"}`,
+          pass: Number(details.insider_probability_score ?? 0) < 50,
+          reason: firstReason(normalizeList(details.insider_probability_reasons).join(" | "), "No strong insider signal"),
+          warnings: normalizeList(details.insider_probability_reasons),
+        },
+        {
+          title: "Final Decision",
+          status: token.final_watchlist_status || "PENDING",
+          pass: token.final_watchlist_pass,
+          reason: firstReason(token.final_watchlist_reason),
+          warnings: normalizeList(details.high_risk_reasons).slice(0, 8),
+        },
+      ];
+
+      decisionTreeEl.innerHTML = steps.map((step) => {
+        const tone = decisionTone(step.status, step.pass);
+        const warnings = step.warnings
+          .map(warningText)
+          .filter(Boolean)
+          .filter((text, index, list) => list.indexOf(text) === index)
+          .slice(0, 4);
+
+        return `
+          <article class="decision-step ${tone}">
+            <div class="decision-step-head">
+              <div class="decision-step-title">${escapeHtml(step.title)}</div>
+              <div class="decision-step-status">${escapeHtml(step.status || "PENDING")}</div>
+            </div>
+            <div class="decision-step-reason">${escapeHtml(step.reason)}</div>
+            ${warnings.length ? `<ul class="decision-step-list">${warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>` : ""}
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderTokenTimeline(token, wallets) {
+      const launchAt = token.pair_created_at || token.first_price_snapshot_at || token.dexscreener_first_seen_at;
+      const originLabel = token.pair_created_at ? "pair creation time" : "first reliable stored timestamp";
+      const firstTrackedEntry = earliestWallet(wallets);
+      const firstSniper = earliestWallet(wallets, (wallet) => normalizeList(wallet.labels).includes("SNIPER"));
+      const firstMajorExit = earliestExitWallet(wallets);
+      const hasDexAd = Number(token.dex_active_boosts || 0) > 0
+        || Number(token.dex_paid_order_count || 0) > 0
+        || Number(token.dex_boost_order_count || 0) > 0;
+      const events = [];
+
+      function addEvent(event) {
+        const date = validDate(event.time);
+        if (!date) return;
+        events.push({ ...event, date });
+      }
+
+      if (token.pair_created_at) {
+        addEvent({
+          title: "DEX Entry / Bonding Complete",
+          time: token.pair_created_at,
+          tone: "pass",
+          body: `Official selected DEX pair was created on ${token.dex_id || "the selected DEX"}. Because bonding-only pairs are skipped, this is the system's DEX entry timestamp.`,
+        });
+      }
+
+      addEvent({
+        title: "First DexScreener Profile Snapshot",
+        time: token.dexscreener_first_seen_at,
+        tone: "pass",
+        body: "First stored token profile snapshot from DexScreener in this local database.",
+      });
+
+      addEvent({
+        title: "First Stored Price Snapshot",
+        time: token.first_price_snapshot_at,
+        tone: "pass",
+        body: "First stored price/liquidity snapshot for the selected pair.",
+      });
+
+      if (firstTrackedEntry) {
+        const details = parseJson(firstTrackedEntry.details, {});
+        const reliability = details.history_may_be_truncated
+          ? " Wallet history is truncated, so this is the earliest observed entry in the fetched holder window."
+          : "";
+        addEvent({
+          title: "First Tracked Holder Entry",
+          time: firstTrackedEntry.first_entry_at,
+          tone: details.history_may_be_truncated ? "warning" : "pass",
+          body: `${shortAddress(firstTrackedEntry.wallet_address)} entered ${formatRelativeTime(firstTrackedEntry.first_entry_at, launchAt)} from ${originLabel}. This is from tracked top-holder wallets, not all buyers.${reliability}`,
+        });
+      }
+
+      if (firstSniper) {
+        const details = parseJson(firstSniper.details, {});
+        const reliability = details.history_may_be_truncated
+          ? " Wallet history is truncated; sniper label is based on observed token entry."
+          : "";
+        addEvent({
+          title: "First Tracked Sniper",
+          time: firstSniper.first_entry_at,
+          tone: "danger",
+          body: `${shortAddress(firstSniper.wallet_address)} entered ${formatDuration(firstSniper.seconds_from_launch)} from pair creation time.${reliability}`,
+        });
+      }
+
+      if (firstMajorExit) {
+        const details = parseJson(firstMajorExit.details, {});
+        const firstExitAt = details.first_exit_at;
+        const reliability = details.history_may_be_truncated
+          ? " Wallet history is truncated, so earlier exits may exist outside the fetched window."
+          : "";
+        const tokenIn = Number(firstMajorExit.total_token_in || 0);
+        const tokenOut = Number(firstMajorExit.total_token_out || 0);
+        const sellRatio = tokenIn > 0 ? tokenOut / tokenIn : 0;
+        addEvent({
+          title: "First Tracked Major Exit",
+          time: firstExitAt,
+          tone: sellRatio >= 1 ? "danger" : "warning",
+          body: `${shortAddress(firstMajorExit.wallet_address)} first observed sell was ${formatRelativeTime(firstExitAt, launchAt)} from ${originLabel}; observed sold ratio is about ${(sellRatio * 100).toFixed(1)}%.${reliability}`,
+        });
+      }
+
+      if (token.dex_id || token.pair_url) {
+        addEvent({
+          title: "DEX Listed / Visible",
+          time: token.dexscreener_first_seen_at || token.pair_created_at || token.first_price_snapshot_at,
+          tone: "pass",
+          body: token.pair_url ? "Selected DexScreener pair is available." : `Detected on ${token.dex_id || "DEX"}.`,
+        });
+      }
+
+      if (hasDexAd) {
+        addEvent({
+          title: "DexScreener Promotion Observed",
+          time: token.dex_promotion_first_seen_at || token.created_at,
+          tone: Number(token.dex_active_boosts || 0) >= 500 ? "warning" : "pass",
+          body: `${formatDexAdsText(token)}. Time is first stored observation, not necessarily exact purchase time.`,
+        });
+      }
+
+      addEvent({
+        title: "Final Decision",
+        time: token.created_at,
+        tone: decisionTone(token.final_watchlist_status, token.final_watchlist_pass),
+        body: `${token.final_watchlist_status || "PENDING"} - ${token.final_watchlist_reason || "No final reason stored."}`,
+      });
+
+      const sortedEvents = events.sort((left, right) => {
+        return left.date.getTime() - right.date.getTime();
+      });
+
+      tokenTimelineEl.innerHTML = sortedEvents.map((event) => `
+        <article class="timeline-item ${event.tone || ""}">
+          <div class="timeline-dot"></div>
+          <div class="timeline-card">
+            <div class="timeline-head">
+              <div class="timeline-title">${escapeHtml(event.title)}</div>
+              <div class="timeline-time" title="${attr(formatDate(event.time))}">${escapeHtml(formatRelativeTime(event.time, launchAt))}</div>
+            </div>
+            <div class="timeline-body">${escapeHtml(event.body)}</div>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function formatDexAdsText(token) {
+      const activeBoosts = Number(token.dex_active_boosts || 0);
+      const paidOrderCount = Number(token.dex_paid_order_count || 0);
+      const boostOrderCount = Number(token.dex_boost_order_count || 0);
+      const orderTypes = parseJson(token.dex_paid_order_types, []);
+      const typeLabels = Array.isArray(orderTypes)
+        ? orderTypes.map((type) => String(type || "").replace("tokenProfile", "Profile"))
+        : [];
+
+      if (activeBoosts >= 500) return `Golden ticker ${activeBoosts}`;
+      if (activeBoosts > 0) return `Active boost ${activeBoosts}`;
+      if (boostOrderCount > 0) return `Boost order (${boostOrderCount})`;
+      if (paidOrderCount > 0 || typeLabels.length) {
+        return typeLabels.length ? typeLabels.join(", ") : `Paid order (${paidOrderCount})`;
+      }
+
+      return "None";
+    }
+
+    function copyIcon() {
+      return `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="2"></path>
+        </svg>
+      `;
+    }
+
+    function fallbackLogo(symbol) {
+      return `<span class="logo logo-fallback">${escapeHtml((symbol || "?").slice(0, 2).toUpperCase())}</span>`;
+    }
+
+    function walletCell(address) {
+      const safeAddress = attr(address || "");
+      return `
+        <div class="wallet-cell">
+          <div class="wallet-address" title="${safeAddress}">${escapeHtml(address || "N/A")}</div>
+          ${address ? `<button class="copy-small copy-button" type="button" aria-label="Copy wallet address" title="Copy wallet address" data-address="${safeAddress}">${copyIcon()}</button>` : ""}
+        </div>
+      `;
+    }
+
+    async function copyAddress(address, button) {
+      try {
+        await navigator.clipboard.writeText(address);
+      } catch (error) {
+        const textarea = document.createElement("textarea");
+        textarea.value = address;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+
+      button.classList.add("copied");
+      button.setAttribute("aria-label", "Copied");
+      window.setTimeout(() => {
+        button.classList.remove("copied");
+        button.setAttribute("aria-label", "Copy address");
+      }, 1200);
+    }
+
+    function renderToken(token) {
+      const details = parseJson(token.details, {});
+      const summary = parseJson(token.intelligence_summary, {});
+      const dexEntry = token.pair_created_at ? formatDate(token.pair_created_at) : "N/A";
+      const logo = token.logo_url
+        ? `<img class="logo" src="${attr(token.logo_url)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'), { className: 'logo logo-fallback', textContent: '${attr((token.symbol || "?").slice(0, 2).toUpperCase())}' }))">`
+        : fallbackLogo(token.symbol);
+
+      tokenHeadEl.innerHTML = `
+        <div class="token-main">
+          ${logo}
+          <div>
+            <h1>${escapeHtml(token.symbol || "Unknown")} <span class="muted">${token.name ? escapeHtml(token.name) : ""}</span></h1>
+            <div class="address-line">
+              <div class="address" title="${attr(token.token_address || "")}">${escapeHtml(token.token_address || "")}</div>
+              <button class="copy-button" type="button" aria-label="Copy token address" title="Copy token address" data-address="${attr(token.token_address || "")}">${copyIcon()}</button>
+            </div>
+            <div class="dex-entry-note" title="${attr(token.pair_created_at || "")}">DEX entry: ${escapeHtml(dexEntry)}</div>
+          </div>
+        </div>
+        <div class="token-actions">
+          <button id="refreshTokenButton" type="button" data-address="${attr(token.token_address || "")}">Refresh Analysis</button>
+          ${token.pair_url ? `<a class="external-link" href="${attr(token.pair_url)}" target="_blank" rel="noopener">DexScreener</a>` : ""}
+        </div>
+      `;
+
+      const metrics = [
+        ["Final", `<span class="badge ${badgeClass(token.final_watchlist_status || "")}">${escapeHtml(token.final_watchlist_status || "N/A")}</span>`],
+        ["Reason", escapeHtml(token.final_watchlist_reason || "N/A")],
+        ["Insider Probability", insiderProbabilityHtml(details)],
+        ["Liquidity Trap", liquidityTrapHtml(details)],
+        ["LP Lock", escapeHtml((details.lp_lock || {}).lp_lock_status || "Unknown")],
+        ["Dev Audit", devAuditHtml(details)],
+        ["Market", escapeHtml(token.market_filter_status || "N/A")],
+        ["Contract", escapeHtml(token.contract_risk_status || "Pending")],
+        ["Wallet", escapeHtml(token.wallet_status || "Pending")],
+        ["Cluster", escapeHtml(token.cluster_status || "Pending")],
+        ["Manipulation", escapeHtml(token.manipulation_status || "Pending")],
+        ["Manipulation Score", `${formatNumber(token.manipulation_score, 0)}/10`],
+        ["Dev Sold", formatNumber(details.dev_sold_token_amount || 0, 2)],
+        ["Dev Out", formatNumber(details.dev_total_token_out || 0, 2)],
+        ["Smart Wallets", formatNumber(summary.smart_wallets || 0, 0)],
+        ["Early Buyers", formatNumber(summary.early_buyers || 0, 0)],
+        ["Early Holding", formatNumber(summary.early_holding || 0, 0)],
+        ["Early Profitable", formatNumber(summary.early_profitable || 0, 0)],
+        ["Fresh Wallets", formatNumber(summary.fresh_wallets || 0, 0)],
+        ["Snipers", formatNumber(summary.snipers || 0, 0)],
+        ["Dumpers", formatNumber(summary.dumpers || 0, 0)],
+        ["Dev Related", formatNumber(summary.dev_related || 0, 0)],
+        ["Dex Ads", escapeHtml(formatDexAdsText(token))],
+        ["Top Holder", formatPercent(token.top_holder_percent)],
+        ["Top 10", formatPercent(token.top10_holders_percent)],
+        ["Liquidity", `$${formatNumber(details.liquidity_usd)}`],
+        ["Market Cap", `$${formatNumber(details.market_cap_usd)}`],
+        ["Pair", escapeHtml(token.dex_id || "N/A")],
+        ["Updated", formatDate(token.created_at)],
+      ];
+
+      metricsEl.innerHTML = metrics.map(([label, value]) => `
+        <article class="metric ${metricClass(label, value)}">
+          <div class="metric-label">${label}</div>
+          <div class="metric-value">${value || "N/A"}</div>
+        </article>
+      `).join("");
+    }
+
+    function renderWallets(wallets) {
+      if (!wallets.length) {
+        walletRowsEl.innerHTML = `<tr><td class="empty" colspan="13">No wallet intelligence rows found yet.</td></tr>`;
+        return;
+      }
+
+      walletRowsEl.innerHTML = wallets.map((wallet) => {
+        const labels = parseJson(wallet.labels, []);
+        const details = parseJson(wallet.details, {});
+        const labelReasons = details.label_reasons || {};
+        const reasons = labels
+          .map((label) => labelReasons[label])
+          .filter(Boolean);
+        const fundingSource = wallet.funding_source || wallet.funder_address || "";
+        const rowClass = walletRowClass(labels, wallet.wallet_score);
+        return `
+          <tr class="${rowClass}">
+            <td>${escapeHtml(wallet.rank || "")}</td>
+            <td>${walletCell(wallet.wallet_address)}</td>
+            <td>${formatPercent(wallet.holder_percent)}</td>
+            <td>
+              <div class="labels">
+                ${labels.length ? labels.map((label) => `<span class="label ${labelClass(label)}">${escapeHtml(label)}</span>`).join("") : `<span class="label">UNKNOWN</span>`}
+              </div>
+            </td>
+            <td class="reason">${escapeHtml(reasons.join(" | ") || "N/A")}</td>
+            <td>${scoreBadge(wallet.wallet_score)}</td>
+            <td>${formatDate(wallet.first_entry_at)}</td>
+            <td>${formatDuration(wallet.seconds_from_launch)}</td>
+            <td>${formatNumber(wallet.total_token_in, 2)}</td>
+            <td>${formatNumber(wallet.total_token_out, 2)}</td>
+            <td>${formatNumber(wallet.net_token_amount, 2)}</td>
+            <td>${escapeHtml(wallet.transaction_count ?? 0)}</td>
+            <td>${walletCell(fundingSource)}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function earlyBuyerRows(wallets) {
+      return wallets
+        .filter((wallet) => wallet.first_entry_at)
+        .sort((left, right) => new Date(left.first_entry_at) - new Date(right.first_entry_at))
+        .slice(0, 20);
+    }
+
+    function renderEarlyBuyerProfitMap(wallets) {
+      const buyers = earlyBuyerRows(wallets);
+      const counts = buyers.reduce(
+        (acc, wallet) => {
+          const details = parseJson(wallet.details, {});
+          const earlyBuyer = details.early_buyer || {};
+          const status = String(earlyBuyer.status || "UNKNOWN");
+          const profitState = String(earlyBuyer.profit_state || "UNKNOWN");
+
+          if (["HOLDING", "PARTIAL_EXIT"].includes(status)) acc.holding += 1;
+          if (["EXITED", "MOSTLY_EXITED"].includes(status)) acc.exited += 1;
+          if (profitState === "PROFIT") acc.profitable += 1;
+          if (profitState === "LOSS") acc.loss += 1;
+          if (profitState === "UNREALIZED") acc.unrealized += 1;
+
+          return acc;
+        },
+        { holding: 0, exited: 0, profitable: 0, loss: 0, unrealized: 0 },
+      );
+
+      earlyBuyerSummaryEl.innerHTML = [
+        ["Early buyers", buyers.length],
+        ["Still holding", counts.holding],
+        ["Exited", counts.exited],
+        ["Profitable", counts.profitable],
+      ].map(([label, value]) => `
+        <article class="profit-stat">
+          <div class="profit-stat-label">${escapeHtml(label)}</div>
+          <div class="profit-stat-value">${escapeHtml(value)}</div>
+        </article>
+      `).join("");
+
+      if (!buyers.length) {
+        earlyBuyerRowsEl.innerHTML = `<tr><td class="empty" colspan="13">No early buyer rows found yet.</td></tr>`;
+        return;
+      }
+
+      earlyBuyerRowsEl.innerHTML = buyers.map((wallet, index) => {
+        const labels = parseJson(wallet.labels, []);
+        const details = parseJson(wallet.details, {});
+        const earlyBuyer = details.early_buyer || {};
+        const rowClass = earlyBuyer.profit_state === "LOSS"
+          ? "suspicious-row"
+          : ["EXITED", "MOSTLY_EXITED"].includes(earlyBuyer.status)
+            ? "warning-row"
+            : "";
+        return `
+          <tr class="${rowClass}">
+            <td>${index + 1}</td>
+            <td>${walletCell(wallet.wallet_address)}</td>
+            <td>${formatDate(wallet.first_entry_at)}</td>
+            <td>${formatDuration(wallet.seconds_from_launch)}</td>
+            <td>${escapeHtml(earlyBuyer.status || "UNKNOWN")}</td>
+            <td>${profitStateBadge(earlyBuyer.profit_state)}</td>
+            <td>${formatNumber(wallet.total_token_in, 2)}</td>
+            <td>${formatNumber(wallet.total_token_out, 2)}</td>
+            <td>${formatNumber(wallet.net_token_amount, 2)}</td>
+            <td>${formatSol(earlyBuyer.native_spent)}</td>
+            <td>${formatSol(earlyBuyer.native_received)}</td>
+            <td title="${attr(earlyBuyer.pnl_note || "")}">${formatSol(earlyBuyer.realized_pnl_native)}</td>
+            <td>
+              <div class="labels">
+                ${labels.length ? labels.map((label) => `<span class="label ${labelClass(label)}">${escapeHtml(label)}</span>`).join("") : `<span class="label">UNKNOWN</span>`}
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function renderHolders(holders) {
+      if (!holders.length) {
+        holderRowsEl.innerHTML = `<tr><td class="empty" colspan="5">No top holders found yet.</td></tr>`;
+        return;
+      }
+
+      holderRowsEl.innerHTML = holders.map((holder) => `
+        <tr>
+          <td>${escapeHtml(holder.rank || "")}</td>
+          <td>${walletCell(holder.owner_address)}</td>
+          <td>${formatNumber(holder.amount, 2)}</td>
+          <td>${formatPercent(holder.percent)}</td>
+          <td>${escapeHtml(holder.source || "N/A")}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderRelationships(relationships) {
+      if (!relationships.length) {
+        relationshipRowsEl.innerHTML = `<tr><td class="empty" colspan="6">No wallet relationship edges found yet.</td></tr>`;
+        return;
+      }
+
+      relationshipRowsEl.innerHTML = relationships.map((edge) => `
+        <tr class="${relationshipClass(edge.relation_type) ? "suspicious-row" : ""}">
+          <td><span class="relationship-type ${relationshipClass(edge.relation_type)}">${escapeHtml(edge.relation_type || "N/A")}</span></td>
+          <td>${walletCell(edge.from_wallet)}</td>
+          <td>${walletCell(edge.to_wallet)}</td>
+          <td>${formatNumber(edge.amount, 2)}</td>
+          <td>${formatDate(edge.timestamp)}</td>
+          <td><div class="wallet-address" title="${attr(edge.signature || "")}">${escapeHtml(edge.signature || "N/A")}</div></td>
+        </tr>
+      `).join("");
+    }
+
+    function wait(ms) {
+      return new Promise((resolve) => window.setTimeout(resolve, ms));
+    }
+
+    async function waitForRefreshToFinish() {
+      for (let attempt = 0; attempt < 180; attempt += 1) {
+        const response = await fetch("/api/scan/status");
+        if (!response.ok) throw new Error("Could not read scan status");
+        const state = await response.json();
+        statusEl.textContent = `${state.status || "running"}: ${state.message || state.stage || ""}`;
+
+        if (state.status === "failed") {
+          throw new Error(state.message || "Refresh analysis failed");
+        }
+
+        if (!state.running && state.status === "finished") {
+          return state;
+        }
+
+        await wait(2000);
+      }
+
+      throw new Error("Refresh analysis is still running");
+    }
+
+    async function findLatestTokenRow(tokenAddress) {
+      const response = await fetch("/api/watchlist?limit=100");
+      if (!response.ok) throw new Error("Could not load latest watchlist rows");
+      const rows = await response.json();
+      return rows.find((row) => row.token_address === tokenAddress) || null;
+    }
+
+    async function refreshCurrentToken(button) {
+      if (!currentToken || !currentToken.token_address) return;
+
+      const tokenAddress = currentToken.token_address;
+      localStorage.setItem(snapshotKey(tokenAddress), JSON.stringify(tokenSnapshot(currentToken)));
+      button.disabled = true;
+      button.textContent = "Refreshing...";
+      statusEl.textContent = "Refresh analysis queued";
+
+      try {
+        const response = await fetch("/api/analyze-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token_address: tokenAddress }),
+        });
+        const state = await response.json();
+        if (!response.ok && response.status !== 409) {
+          throw new Error(state.error || state.message || "Could not start refresh");
+        }
+
+        await waitForRefreshToFinish();
+        const latest = await findLatestTokenRow(tokenAddress);
+        if (latest && latest.run_id && latest.token_id) {
+          window.location.href = `/token?run_id=${encodeURIComponent(latest.run_id)}&token_id=${encodeURIComponent(latest.token_id)}`;
+          return;
+        }
+
+        await loadDetail();
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = "Refresh Analysis";
+        statusEl.textContent = error.message || "Refresh failed";
+      }
+    }
+
+    async function loadDetail() {
+      const query = params();
+      const runId = query.get("run_id");
+      const tokenId = query.get("token_id");
+
+      if (!runId || !tokenId) {
+        statusEl.textContent = "Missing token identifiers";
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/token-detail?run_id=${encodeURIComponent(runId)}&token_id=${encodeURIComponent(tokenId)}`);
+
+        if (!response.ok) {
+          throw new Error("Request failed");
+        }
+
+        const data = await response.json();
+
+        if (!data.token) {
+          statusEl.textContent = "Token not found";
+          return;
+        }
+
+        currentToken = data.token;
+        statusEl.textContent = `Run #${runId}`;
+        renderToken(data.token);
+        renderChangeSignals(data.token);
+        renderTokenTimeline(data.token, data.wallets || []);
+        renderDecisionTree(data.token);
+        renderWallets(data.wallets || []);
+        renderEarlyBuyerProfitMap(data.wallets || []);
+        renderHolders(data.holders || []);
+        renderRelationships(data.relationships || []);
+      } catch (error) {
+        statusEl.textContent = "Failed to load token details";
+        walletRowsEl.innerHTML = `<tr><td class="empty" colspan="13">Token detail request failed.</td></tr>`;
+        earlyBuyerRowsEl.innerHTML = `<tr><td class="empty" colspan="13">Token detail request failed.</td></tr>`;
+        holderRowsEl.innerHTML = `<tr><td class="empty" colspan="5">Token detail request failed.</td></tr>`;
+        relationshipRowsEl.innerHTML = `<tr><td class="empty" colspan="6">Token detail request failed.</td></tr>`;
+      }
+    }
+
+    document.addEventListener("click", (event) => {
+      const refreshButton = event.target.closest("#refreshTokenButton");
+      if (refreshButton) {
+        refreshCurrentToken(refreshButton);
+        return;
+      }
+
+      const button = event.target.closest(".copy-button");
+      if (!button) return;
+      copyAddress(button.dataset.address || "", button);
+    });
+
+    loadDetail();
+  </script>
+</body>
+</html>
