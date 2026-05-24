@@ -4,17 +4,17 @@ import os
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from db import create_pool
-from dexscreener import (
+from app.db import create_pool
+from app.dexscreener import (
     DexScreenerClient,
     dedupe_latest_candidates,
     sort_discovered_pairs_by_recency,
 )
-from tokens import upsert_token
-from pairs import upsert_token_pair
-from prices import upsert_token_price
-from system import start_ingestion_run, finish_ingestion_run, save_raw_snapshot
-from risk import add_basic_risk_checks
+from app.tokens import upsert_token
+from app.pairs import upsert_token_pair
+from app.prices import upsert_token_price
+from app.system import start_ingestion_run, finish_ingestion_run, save_raw_snapshot
+from app.risk import add_basic_risk_checks
 
 
 logging.basicConfig(
@@ -431,4 +431,8 @@ async def main():
 
 
 if __name__ == "__main__":
+    asyncio.run(main())
+
+
+def cli():
     asyncio.run(main())

@@ -6,7 +6,7 @@ from typing import Any
 import asyncpg
 import httpx
 
-from helius import HeliusClient
+from app.helius import HeliusClient
 
 
 def unix_to_datetime(value) -> datetime | None:

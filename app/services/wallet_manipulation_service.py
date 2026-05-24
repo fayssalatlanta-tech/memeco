@@ -6,10 +6,7 @@ from typing import Any
 import asyncpg
 import httpx
 
-try:
-    from helius import HeliusClient
-except ModuleNotFoundError:
-    from app.helius import HeliusClient
+from app.helius import HeliusClient
 
 
 TOP_HOLDER_LIMIT = 3

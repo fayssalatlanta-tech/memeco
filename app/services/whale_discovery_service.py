@@ -4,18 +4,7 @@ from typing import Any
 
 import asyncpg
 
-try:
-    from whale_scoring_logic import (
-        WhaleTrade,
-        classify_elite_wallet,
-        summarize_whale_trades,
-    )
-except ModuleNotFoundError:
-    from app.whale_scoring_logic import (
-        WhaleTrade,
-        classify_elite_wallet,
-        summarize_whale_trades,
-    )
+from app.whale_scoring_logic import WhaleTrade, classify_elite_wallet, summarize_whale_trades
 
 
 MIN_PROFIT_SOL_FOR_DISCOVERY = 10.0

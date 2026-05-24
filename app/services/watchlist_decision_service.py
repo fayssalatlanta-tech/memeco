@@ -3,10 +3,7 @@ from typing import Any
 
 import asyncpg
 
-try:
-    from services.liquidity_filter_service import classify_liquidity_trap
-except ModuleNotFoundError:
-    from app.services.liquidity_filter_service import classify_liquidity_trap
+from app.services.liquidity_filter_service import classify_liquidity_trap
 
 def normalize_list(value):
     if value is None:

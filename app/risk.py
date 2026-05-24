@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import asyncpg
 
-from validation import require_keys
+from app.validation import require_keys
 
 
 VALID_RISK_LEVELS = {"PASS", "INFO", "WARNING", "DANGER", "UNKNOWN"}

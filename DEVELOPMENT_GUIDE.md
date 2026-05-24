@@ -15,6 +15,9 @@ Main layers:
 
 ## Important Files
 
+- `pyproject.toml`: package metadata, dependencies, and console script entry points.
+- `app/__init__.py`: marks `app/` as an importable Python package.
+- `app/apply_migrations.py`: migration runner — tracks applied SQL in `schema_migrations` table.
 - `app/ingest_dexscreener.py`: discovers latest candidates from DexScreener profiles, ads, boosts, and community takeovers, then saves newest completed DEX pairs.
 - `app/dexscreener.py`: selected pair and discovery helper logic. This is important because Pump.fun bonding pairs and later DEX pairs can coexist. The current rule skips bonding-only `pumpfun` pairs and analyzes only completed non-bonding DEX pairs.
 - `app/services/market_filter_service.py`: momentum, age, activity, and dump-risk filter.
@@ -45,6 +48,44 @@ Main layers:
 - `PROJECT_OVERVIEW.md`: expert-level architecture and current behavior.
 - `PROJECT_ACHIEVEMENTS.md`: completed features and current state.
 - `README.md`: quick setup and commands.
+
+## Package Structure and Imports
+
+The project is an installable Python package defined by `pyproject.toml`.
+
+```
+pip install -e .          # editable install — all console scripts become available
+memeco-server             # start the dashboard/API server
+memeco-ingest             # run DexScreener ingestion
+memeco-pipeline           # run the full analysis pipeline
+memeco-migrate            # apply pending database migrations
+memeco-migrate --dry-run  # show pending migrations without applying
+```
+
+All internal imports use **absolute paths** rooted at the `app` package:
+
+```python
+from app.db import create_pool
+from app.services.watchlist_decision_service import run_watchlist_decision_service
+from app.whale_scoring_logic import WhaleTrade
+```
+
+Do NOT use bare imports like `from db import ...` or `from services.xxx import ...`.
+Do NOT add `try/except ModuleNotFoundError` import fallbacks.
+
+## Migrations
+
+SQL migration files live in `migrations/`. The runner (`app/apply_migrations.py`)
+tracks which have been applied via a `schema_migrations` table (version, filename,
+SHA-256 checksum, applied_at).
+
+To add a new migration:
+
+1. Create `migrations/NNN_description.sql` (number it sequentially).
+2. Write idempotent SQL when possible (`IF NOT EXISTS`, etc.).
+3. Run `memeco-migrate` — it applies only new files in filename order.
+4. The tool detects TimescaleDB-specific statements and runs them outside an
+   explicit transaction block when necessary.
 
 ## Development Rules
 

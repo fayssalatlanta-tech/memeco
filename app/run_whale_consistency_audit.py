@@ -1,8 +1,8 @@
 import asyncio
 import json
 
-from db import create_pool
-from services.whale_consistency_auditor_service import run_whale_consistency_audit
+from app.db import create_pool
+from app.services.whale_consistency_auditor_service import run_whale_consistency_audit
 
 
 async def main():

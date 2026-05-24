@@ -5,10 +5,7 @@ from typing import Any
 import asyncpg
 import httpx
 
-try:
-    from helius import HeliusClient
-except ModuleNotFoundError:
-    from app.helius import HeliusClient
+from app.helius import HeliusClient
 
 
 LAMPORTS_PER_SOL = 1_000_000_000
