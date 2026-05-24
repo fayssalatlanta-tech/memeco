@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Quant Watchlist</title>
+  <link rel="stylesheet" href="/static/shared/tokens.css">
+  <script src="/static/shared/utils.js"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -11,11 +13,8 @@
       --bg-soft: #11121d;
       --panel: rgba(21, 22, 35, .78);
       --panel-strong: rgba(29, 30, 45, .92);
-      --panel-light: rgba(246, 247, 255, .94);
       --text: #f8f7ff;
-      --text-dark: #111827;
       --muted: #9ca3b7;
-      --muted-dark: #64748b;
       --line: rgba(255, 255, 255, .10);
       --line-strong: rgba(255, 255, 255, .16);
       --pass: #47e59d;
@@ -881,8 +880,6 @@
 
     .table-card {
       overflow: hidden;
-      background: rgba(246, 247, 255, .96);
-      color: var(--text-dark);
     }
 
     .table-head {
@@ -900,7 +897,6 @@
     }
 
     .table-note {
-      color: var(--muted-dark);
       font-size: 12px;
     }
 
@@ -955,8 +951,6 @@
       position: sticky;
       top: 0;
       z-index: 1;
-      background: #f3f5fb;
-      color: #697386;
       font-size: 11px;
       font-weight: 850;
       text-transform: uppercase;
@@ -966,10 +960,6 @@
     tbody tr {
       transition: transform .16s ease, background .16s ease;
       min-height: 82px;
-    }
-
-    tbody tr:hover {
-      background: #ffffff;
     }
 
     tr:last-child td {
@@ -989,24 +979,6 @@
 
     .token-meta {
       min-width: 0;
-    }
-
-    .table-card .token-logo {
-      border-color: rgba(15, 23, 42, .10);
-      background: #eef2f6;
-      box-shadow: 0 10px 22px rgba(15, 23, 42, .09);
-    }
-
-    .table-card .token-fallback {
-      color: #344054;
-    }
-
-    .table-card .address {
-      color: var(--muted-dark);
-    }
-
-    .table-card .token-name {
-      color: var(--muted-dark);
     }
 
     .movement-strip {
@@ -1062,12 +1034,6 @@
       color: #667085;
     }
 
-    .table-card .copy-button {
-      background: #ffffff;
-      color: var(--muted-dark);
-      border-color: rgba(15, 23, 42, .10);
-    }
-
     .table-card .copy-button:hover,
     .table-card .copy-button.copied {
       color: #047857;
@@ -1102,7 +1068,6 @@
     }
 
     .stack-key {
-      color: var(--muted-dark);
       font-weight: 850;
       text-transform: uppercase;
       font-size: 10px;
@@ -1136,7 +1101,6 @@
     }
 
     .cell-sub {
-      color: var(--muted-dark);
       font-size: 12px;
       line-height: 1.35;
       overflow: hidden;
@@ -1210,7 +1174,6 @@
 
     .mini-kpi span {
       min-width: 0;
-      color: var(--muted-dark);
       font-size: 11px;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -1239,7 +1202,6 @@
     .market-stat .stat-label {
       display: block;
       margin-bottom: 3px;
-      color: var(--muted-dark);
       font-size: 9px;
       font-weight: 850;
       letter-spacing: .04em;
@@ -1400,7 +1362,6 @@
 
     .empty {
       padding: 30px;
-      color: var(--muted-dark);
       text-align: center;
     }
 
