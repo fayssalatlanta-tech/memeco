@@ -6,7 +6,6 @@ import asyncpg
 
 from app.whale_scoring_logic import WhaleTrade, classify_elite_wallet, summarize_whale_trades
 
-
 MIN_PROFIT_SOL_FOR_DISCOVERY = 10.0
 
 
@@ -25,7 +24,6 @@ def trade_from_wallet_row(row: dict[str, Any]) -> WhaleTrade | None:
     details = parse_json(row.get("details"), {})
     early_buyer = details.get("early_buyer") or {}
     native_spent = float(early_buyer.get("native_spent") or 0)
-    native_received = float(early_buyer.get("native_received") or 0)
     pnl_sol = early_buyer.get("realized_pnl_native")
     roi = early_buyer.get("realized_roi")
     seconds_from_launch = row.get("seconds_from_launch")

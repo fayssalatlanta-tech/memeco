@@ -2,7 +2,6 @@ import unittest
 
 from app.services.dev_wallet_flow_service import analyze_dev_wallet_flow
 
-
 TOKEN = "TokenMint111111111111111111111111111111111"
 DEV = "DevWallet111111111111111111111111111111111"
 A = "ProxyA111111111111111111111111111111111111"

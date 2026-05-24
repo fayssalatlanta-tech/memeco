@@ -1,20 +1,18 @@
 import asyncio
 
 from app.db import create_pool
-
+from app.services.cluster_analysis_service import run_cluster_analysis_service
+from app.services.contract_risk_service import run_contract_risk_service
+from app.services.dev_wallet_audit_service import run_dev_wallet_audit_service
+from app.services.dev_wallet_flow_service import run_dev_wallet_flow_service
+from app.services.liquidity_filter_service import run_liquidity_filter_service
 from app.services.market_filter_service import (
     get_early_dex_candidates,
     save_market_filter_results,
 )
-
-from app.services.contract_risk_service import run_contract_risk_service
-from app.services.liquidity_filter_service import run_liquidity_filter_service
 from app.services.wallet_analysis_service import run_wallet_analysis_service
-from app.services.cluster_analysis_service import run_cluster_analysis_service
 from app.services.wallet_intelligence_service import run_wallet_intelligence_service
 from app.services.wallet_manipulation_service import run_wallet_manipulation_service
-from app.services.dev_wallet_audit_service import run_dev_wallet_audit_service
-from app.services.dev_wallet_flow_service import run_dev_wallet_flow_service
 from app.services.watchlist_decision_service import run_watchlist_decision_service
 
 

@@ -8,7 +8,6 @@ import asyncpg
 
 from app.helius import HeliusClient
 
-
 WEBHOOK_PROVIDER = "helius"
 
 

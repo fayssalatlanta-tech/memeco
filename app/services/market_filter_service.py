@@ -4,7 +4,6 @@ from typing import Any
 
 import asyncpg
 
-
 ALLOWED_READINESS_STATUSES = {
     "READY_FOR_ANALYSIS",
     "PARTIAL_BUT_PASS",
@@ -705,7 +704,7 @@ async def save_market_filter_results(
     return saved_results
     for c in candidates:
         print(
-           
+
             f"symbol={c['symbol']} | "
             f"status={c['data_readiness_status']} | "
             f"age_min={c['pair_age_minutes']} | "
@@ -726,8 +725,8 @@ async def save_market_filter_results(
             f"vol_1h={c['volume_1h_usd']} | "
             f"liquidity={c['liquidity_usd']} | "
             f"warning_level={c['market_warning_level']} | "
-            f"warnings={c['market_warnings']} | "  
+            f"warnings={c['market_warnings']} | "
             f"market_status={c['market_filter_status']} | "
             f"market_pass={c['market_filter_pass']} | "
             f"market_reason={c['market_filter_reason']}"
-        ) 
+        )

@@ -2,7 +2,6 @@ import unittest
 
 from app.services.dev_wallet_audit_service import analyze_dev_wallet_transactions
 
-
 TOKEN = "TokenMint111111111111111111111111111111111"
 DEV = "DevWallet111111111111111111111111111111111"
 OTHER = "OtherWallet111111111111111111111111111111"

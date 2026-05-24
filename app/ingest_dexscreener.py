@@ -3,6 +3,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Any
 
 from app.db import create_pool
 from app.dexscreener import (
@@ -11,12 +12,11 @@ from app.dexscreener import (
     sort_discovered_pairs_by_recency,
 )
 from app.http_utils import UpstreamUnavailable
-from app.tokens import upsert_token
 from app.pairs import upsert_token_pair
 from app.prices import upsert_token_price
-from app.system import start_ingestion_run, finish_ingestion_run, save_raw_snapshot
 from app.risk import add_basic_risk_checks, record_data_unavailable
-
+from app.system import finish_ingestion_run, save_raw_snapshot, start_ingestion_run
+from app.tokens import upsert_token
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,6 +84,7 @@ async def ingest_token(
         raw_json=token_orders,
     )
 
+    best_pair: dict[str, Any] | None
     if selected_pair is not None:
         best_pair = selected_pair
     else:

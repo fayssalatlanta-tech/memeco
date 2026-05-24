@@ -1,8 +1,7 @@
-from datetime import datetime, timezone
 import unittest
+from datetime import datetime, timezone
 
 from app.services.wallet_intelligence_service import analyze_wallet_transactions
-
 
 TOKEN = "TokenMint111111111111111111111111111111111"
 WALLET = "Wallet111111111111111111111111111111111111"

@@ -1,9 +1,11 @@
 import asyncio
+import hmac
 import json
 import os
 import threading
 import traceback
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -13,11 +15,13 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from app.db import create_pool
-from app.ingest_dexscreener import ingest_manual_token, main as run_ingestion
+from app.ingest_dexscreener import ingest_manual_token
+from app.ingest_dexscreener import main as run_ingestion
 from app.services.cluster_analysis_service import run_cluster_analysis_service
 from app.services.contract_risk_service import run_contract_risk_service
-from app.services.liquidity_filter_service import run_liquidity_filter_service
 from app.services.dev_wallet_audit_service import run_dev_wallet_audit_service
+from app.services.dev_wallet_flow_service import run_dev_wallet_flow_service
+from app.services.liquidity_filter_service import run_liquidity_filter_service
 from app.services.market_filter_service import (
     get_early_dex_candidates,
     save_market_filter_results,
@@ -25,19 +29,17 @@ from app.services.market_filter_service import (
 from app.services.wallet_analysis_service import run_wallet_analysis_service
 from app.services.wallet_intelligence_service import run_wallet_intelligence_service
 from app.services.wallet_manipulation_service import run_wallet_manipulation_service
-from app.services.dev_wallet_flow_service import run_dev_wallet_flow_service
 from app.services.watchlist_decision_service import run_watchlist_decision_service
-from app.services.whale_signal_service import save_live_whale_signal
 from app.services.whale_consistency_auditor_service import run_whale_consistency_audit
 from app.services.whale_price_refresh_service import refresh_whale_trade_prices
-from app.services.whale_webhook_service import sync_whale_webhook
+from app.services.whale_signal_service import save_live_whale_signal
 from app.services.whale_survival_service import run_whale_survival_service
-
+from app.services.whale_webhook_service import sync_whale_webhook
 
 APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
 SCAN_LOCK = threading.Lock()
-SCAN_STATE = {
+SCAN_STATE: dict[str, Any] = {
     "running": False,
     "status": "idle",
     "stage": "idle",
@@ -60,8 +62,6 @@ def json_default(value):
 
 
 def utc_now_iso() -> str:
-    from datetime import datetime, timezone
-
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -439,7 +439,7 @@ async def fetch_summary(pool: asyncpg.Pool) -> dict:
 async def fetch_watchlist(pool: asyncpg.Pool, status: str | None, limit: int) -> list[dict]:
     try:
         where_conditions = ["LOWER(COALESCE(p.dex_id, '')) <> 'pumpfun'"]
-        params = [limit]
+        params: list[Any] = [limit]
 
         if status:
             where_conditions.append("latest_wd.final_watchlist_status = $2")
@@ -1043,7 +1043,7 @@ async def fetch_whale_radar(pool: asyncpg.Pool, limit: int, wallet_address: str 
             )
 
             live_signal_where = ""
-            live_signal_params = [limit]
+            live_signal_params: list[Any] = [limit]
             if wallet_address:
                 live_signal_where = "WHERE s.wallet_address = $2"
                 live_signal_params.append(wallet_address)
@@ -1867,10 +1867,37 @@ async def api_analyze_token(request: Request) -> Response:
     return QuantJSONResponse(state, status_code=status_code)
 
 
+def _whale_webhook_auth_ok(provided: str | None, expected: str | None) -> bool:
+    """
+    Constant-time comparison for the whale-signal webhook ``Authorization``
+    header.
+
+    Returns True iff:
+        * No expected secret is configured (auth disabled), OR
+        * The provided header matches the expected one byte-for-byte.
+
+    Uses :func:`hmac.compare_digest` so a remote attacker cannot learn the
+    secret by timing repeated requests with progressively-correct prefixes.
+    Both arguments are encoded to bytes first because ``compare_digest``
+    requires equal-type operands and short-circuits on length mismatch.
+    """
+    if not expected:
+        return True
+    if not provided:
+        return False
+    return hmac.compare_digest(
+        provided.encode("utf-8"),
+        expected.encode("utf-8"),
+    )
+
+
 @app.post("/api/whale-signal")
 async def api_whale_signal(request: Request) -> Response:
     expected_auth = os.getenv("WHALE_WEBHOOK_AUTH_HEADER") or os.getenv("HELIUS_WEBHOOK_AUTH_HEADER")
-    if expected_auth and request.headers.get("Authorization") != expected_auth:
+    if not _whale_webhook_auth_ok(
+        request.headers.get("Authorization"),
+        expected_auth,
+    ):
         return QuantJSONResponse({"error": "Unauthorized webhook"}, status_code=401)
 
     try:

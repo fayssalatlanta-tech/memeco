@@ -5,6 +5,7 @@ import asyncpg
 
 from app.services.liquidity_filter_service import classify_liquidity_trap
 
+
 def normalize_list(value):
     if value is None:
         return []
@@ -458,8 +459,7 @@ def classify_watchlist_decision(row: dict[str, Any]) -> dict[str, Any]:
 
     if (
         market_status == "MARKET_PASS_HIGH_RISK"
-        or liquidity_status == "LIQUIDITY_WEAK"
-        or liquidity_status == "LIQUIDITY_WARNING"
+        or liquidity_status in {"LIQUIDITY_WEAK", "LIQUIDITY_WARNING"}
         or wallet_status == "WALLET_WARNING"
         or cluster_status == "CLUSTER_WARNING"
         or manipulation_status == "MANIPULATION_WARNING"

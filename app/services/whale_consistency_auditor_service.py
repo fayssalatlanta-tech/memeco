@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -12,9 +11,8 @@ import asyncpg
 
 from app.dexscreener import DexScreenerClient, safe_float, safe_int
 from app.helius import HeliusClient
-from app.whale_scoring_logic import WhaleTrade, classify_elite_wallet, summarize_whale_trades
 from app.services.whale_discovery_service import upsert_elite_wallet
-
+from app.whale_scoring_logic import WhaleTrade, classify_elite_wallet, summarize_whale_trades
 
 LAMPORTS_PER_SOL = 1_000_000_000
 AUDIT_SOURCE = "wallet_consistency_audit"
@@ -27,7 +25,7 @@ class WhaleConsistencyConfig:
     min_profit_sol: float = 0.0
 
     @classmethod
-    def from_env(cls) -> "WhaleConsistencyConfig":
+    def from_env(cls) -> WhaleConsistencyConfig:
         return cls(
             wallet_limit=_bounded_int("WHALE_AUDIT_WALLET_LIMIT", 50, 1, 200),
             tx_limit=_bounded_int("WHALE_AUDIT_TX_LIMIT", 50, 20, 100),

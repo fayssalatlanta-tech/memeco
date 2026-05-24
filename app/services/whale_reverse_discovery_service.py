@@ -18,9 +18,8 @@ from app.dexscreener import (
     select_preferred_pair,
 )
 from app.helius import HeliusClient
-from app.whale_scoring_logic import WhaleTrade, classify_elite_wallet, summarize_whale_trades
 from app.services.whale_discovery_service import upsert_elite_wallet
-
+from app.whale_scoring_logic import WhaleTrade, classify_elite_wallet, summarize_whale_trades
 
 LAMPORTS_PER_SOL = 1_000_000_000
 REVERSE_DISCOVERY_SOURCE = "reverse_profit_discovery"
@@ -36,7 +35,7 @@ class WhaleReverseDiscoveryConfig:
     max_target_age_hours: int = 24
 
     @classmethod
-    def from_env(cls) -> "WhaleReverseDiscoveryConfig":
+    def from_env(cls) -> WhaleReverseDiscoveryConfig:
         return cls(
             target_limit=_bounded_int("WHALE_TOP_GAINER_LIMIT", 10, 1, 30),
             candidate_pool_limit=_bounded_int("WHALE_TOP_GAINER_CANDIDATE_POOL", 30, 5, 120),

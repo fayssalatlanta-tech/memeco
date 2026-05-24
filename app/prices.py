@@ -1,5 +1,7 @@
 import asyncpg
+
 from app.validation import require_keys
+
 
 async def upsert_token_price(pool: asyncpg.Pool, price_data: dict) -> dict:
     require_keys(
@@ -8,7 +10,7 @@ async def upsert_token_price(pool: asyncpg.Pool, price_data: dict) -> dict:
         context="price_data",
     )
 
-   
+
     sql = """
     INSERT INTO token_prices (
         time,

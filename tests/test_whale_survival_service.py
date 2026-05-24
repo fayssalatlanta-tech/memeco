@@ -3,7 +3,6 @@ import unittest
 from app.services.whale_survival_service import (
     SurvivalTrade,
     build_survival_profile,
-    classify_exit_style,
     classify_whale_style,
     is_rugged_trade,
 )

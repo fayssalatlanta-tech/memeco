@@ -211,11 +211,23 @@ Whale live-signal behavior:
 
 ## Testing Checklist
 
-Run:
+Install dev tools once:
 
 ```powershell
-python -m unittest discover -s tests -v
+pip install -e ".[dev]"
 ```
+
+Run the same gates that CI runs:
+
+```powershell
+python -m unittest discover -s tests -v   # unit tests
+ruff check .                               # lint
+mypy                                       # type check (config in pyproject.toml)
+```
+
+CI (`.github/workflows/ci.yml`) runs these on every push and pull request
+against `main`. Unit tests are exercised on Python 3.10, 3.11, and 3.12;
+ruff and mypy run once on 3.12. PRs that fail any gate are blocked.
 
 Manual checks:
 
