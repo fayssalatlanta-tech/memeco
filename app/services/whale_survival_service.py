@@ -8,7 +8,6 @@ from typing import Any
 
 import asyncpg
 
-
 RUG_ROI_THRESHOLD = -90.0
 SURVIVAL_MIN_RATE = 80.0
 LADDERING_MIN_SELL_COUNT = 2

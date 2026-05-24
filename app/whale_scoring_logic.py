@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from statistics import mean
 
-
 MIN_TRADE_AMOUNT_SOL = 0.1
 MIN_TRADES_FOR_SCORE = 5
 BOT_TX_PER_MINUTE = 5.0

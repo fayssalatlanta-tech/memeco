@@ -3,7 +3,6 @@ from typing import Any
 
 import asyncpg
 
-
 EXCLUDED_HOLDER_OWNERS = {
     "11111111111111111111111111111111",
 }

@@ -7,7 +7,6 @@ import httpx
 
 from app.helius import HeliusClient
 
-
 LAMPORTS_PER_SOL = 1_000_000_000
 WHALE_HOLDER_PERCENT = 5.0
 TOP_RANK_WHALE_PERCENT = 1.5

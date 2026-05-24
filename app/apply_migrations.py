@@ -24,12 +24,10 @@ import asyncio
 import hashlib
 import os
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 import asyncpg
 from dotenv import load_dotenv
-
 
 load_dotenv()
 
@@ -151,7 +149,7 @@ async def run_migrations(dry_run: bool = False) -> list[str]:
 
         if dry_run:
             print(f"Pending migrations ({len(pending)}):")
-            for version, path, _ in pending:
+            for _version, path, _ in pending:
                 print(f"  [ ] {path.name}")
             return [v for v, _, _ in pending]
 

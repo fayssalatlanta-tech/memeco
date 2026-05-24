@@ -3,7 +3,6 @@ from typing import Any
 
 import asyncpg
 
-
 SYSTEM_ADDRESS = "11111111111111111111111111111111"
 
 

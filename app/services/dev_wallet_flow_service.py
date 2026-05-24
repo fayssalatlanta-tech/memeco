@@ -16,7 +16,6 @@ from app.services.dev_wallet_audit_service import (
     token_transfer_mint,
 )
 
-
 MAX_DEPTH = 2
 MAX_DIRECT_RECIPIENTS = 20
 MAX_SECOND_DEGREE_RECIPIENTS = 20

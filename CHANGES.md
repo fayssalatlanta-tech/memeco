@@ -7,6 +7,144 @@ the project.
 
 ---
 
+## 2026-05-24 — Constant-time webhook auth, pinned dependencies, GitHub Actions CI
+
+### Why
+
+Three pre-production items that were previously listed as follow-ups but
+overdue for a 14k-LOC trading-adjacent codebase:
+
+1. **`/api/whale-signal` is publicly reachable.** The auth check used a
+   plain `==` comparison against `WHALE_WEBHOOK_AUTH_HEADER`. Even with a
+   long random secret this leaks the secret a byte at a time through
+   response-time differences. Use `hmac.compare_digest(...)` so an
+   attacker can't time-attack the secret.
+2. **Unpinned dependencies.** `requirements.txt` had loose `>=` ranges
+   and `pyproject.toml` mirrored them. A breaking `httpx` or `fastapi`
+   release could silently break ingestion or the dashboard with no
+   warning at install time.
+3. **No CI.** Nothing was running tests, linting, or type-checking on
+   pull requests. Easy to land a typo or import regression.
+
+### What changed
+
+#### `app/web_server.py`
+
+- New `_whale_webhook_auth_ok(provided, expected)` helper. Encodes both
+  inputs to UTF-8 bytes and compares them with `hmac.compare_digest`. If
+  no expected secret is configured, auth is disabled (existing behavior).
+- `api_whale_signal` calls the helper instead of using `!=` directly.
+- Pulled the `from datetime import datetime, timezone` out of the body
+  of `utc_now_iso()` to the top of the module (ruff PLC0415).
+- Annotated `SCAN_STATE` and a couple of mixed `params` lists as
+  `dict[str, Any]` / `list[Any]` so mypy is happy.
+
+#### `app/services/watchlist_decision_service.py`
+
+- Collapsed `liquidity_status == "LIQUIDITY_WEAK" or liquidity_status == "LIQUIDITY_WARNING"`
+  into `liquidity_status in {"LIQUIDITY_WEAK", "LIQUIDITY_WARNING"}` (ruff PLR1714).
+
+#### `app/services/whale_discovery_service.py`
+
+- Removed an unused `native_received` local in `trade_from_wallet_row()`
+  (ruff F841).
+
+#### `app/apply_migrations.py`
+
+- Renamed unused loop variable `version` → `_version` in the dry-run
+  print loop (ruff B007).
+
+#### `app/ingest_dexscreener.py`
+
+- Added `from typing import Any` and an explicit
+  `best_pair: dict[str, Any] | None` annotation so mypy can narrow the
+  `if/else` correctly.
+
+#### Mass auto-fixes (ruff `--fix`)
+
+- 50 cosmetic fixes: import ordering (I001 × 30), trailing newlines
+  (W292 × 8), unused imports (F401 × 6), trailing whitespace (W291/W293
+  × 4), unused quoted annotations (UP037 × 2). No behavioral change.
+
+#### `pyproject.toml`
+
+- **Pinned all runtime deps to exact versions** (asyncpg 0.31.0,
+  fastapi 0.136.3, httpx 0.28.1, python-dotenv 1.2.2, tenacity 9.1.4,
+  uvicorn[standard] 0.48.0). These are the versions used in current
+  testing.
+- Added `[project.optional-dependencies] dev = [ruff, mypy, types-...]`.
+  Install with `pip install -e ".[dev]"`.
+- Added `[tool.ruff]` config: line-length 100, target Python 3.10, and
+  a focused rule selection (E/W/F/I/B/UP/PL/RUF). Ignored a handful of
+  pylint metrics that don't fit a service-heavy codebase
+  (PLR0911-15 too-many-X, PLR2004 magic numbers, B008 fastapi default,
+  PLW0603 SCAN_STATE global).
+- Added `[tool.mypy]` config: lenient (no implicit optional + strict
+  equality + warn unused ignores), with `app.services.*` overridden to
+  ignore-errors because those modules are dominated by raw upstream
+  JSON shapes that don't pay back the typing cost. `tests/` is excluded
+  from mypy entirely; tests run under unittest.
+
+#### `requirements.txt`
+
+- Pinned to the same versions as `pyproject.toml`. The file remains as
+  a back-compat alias; the canonical list is `pyproject.toml`.
+
+#### `.github/workflows/ci.yml` (new)
+
+- Two jobs:
+  1. **`lint-and-types`** runs `ruff check .` and `mypy` on Python 3.12.
+  2. **`unit-tests`** runs `python -m unittest discover -s tests -v`
+     against Python 3.10, 3.11, and 3.12 in parallel
+     (`fail-fast: false`).
+- pip is cached against `pyproject.toml` + `requirements.txt`.
+- Concurrency group cancels superseded runs on the same branch.
+- `permissions: contents: read` is the minimum needed for checkout.
+
+#### `tests/test_webhook_auth.py` (new)
+
+- Six tests pin the `_whale_webhook_auth_ok` helper:
+  empty/missing config = auth disabled; missing provided header = reject;
+  matching secret = accept; wrong secret = reject; off-by-one prefix and
+  off-by-one suffix = reject; non-ASCII secret round-trips correctly.
+
+### Backwards compatibility
+
+- The `/api/whale-signal` route's _functional_ behavior is unchanged: a
+  configured secret still requires a matching `Authorization` header,
+  and a missing/wrong header still returns 401. Only the comparison
+  primitive changed.
+- All public API responses, CLI commands, and database schema are
+  untouched.
+- Pinning runtime deps to exact versions means `pip install -e .` will
+  resolve to the tested set, but anyone who depended on a wider range
+  may need to upgrade pip / use a fresh venv. This is the intended
+  behavior — silent dep drift was the bug we're fixing.
+
+### Tests
+
+- `python -m unittest discover -s tests -v` — **72 tests**, all green
+  (66 existing + 6 new auth helper tests).
+- `ruff check .` — All checks passed.
+- `mypy` — Success: no issues found in 50 source files.
+- All three commands are wired into `.github/workflows/ci.yml`, so
+  future PRs are blocked on the same gates.
+
+### Follow-ups identified during this work (NOT addressed here)
+
+- `mypy` is lenient by design. Tightening `app.services.*` (currently
+  `ignore_errors = true`) would catch a few real bugs but requires a
+  big typing pass on the upstream-JSON code paths.
+- The CI doesn't run a real Postgres yet, so SQL changes are still
+  validated only by manual scan + the unit-test fakes. A Postgres /
+  TimescaleDB service container per `unit-tests` job would close that
+  gap and let `tests/` reach the real `risk_checks` insert path.
+- `docker-compose.yml` still has `POSTGRES_PASSWORD=your_strong_password`
+  hard-coded (FastAPI changelog follow-up #2). Out of scope for this
+  PR; should switch to `${POSTGRES_PASSWORD:?...}` and `.env` next.
+
+---
+
 ## 2026-05-24 — Retries with backoff, Helius rate limit, batched risk_check inserts
 
 ### Why
@@ -453,7 +591,7 @@ uvicorn[standard]==0.32.1
 - All four static HTML pages are still served at the same paths.
 - Background scan / manual analyze / whale webhook flows still launch via
   `threading.Thread` exactly as before.
-- The webhook `Authorization` check still uses `==` (see Follow-ups).
+- The webhook `Authorization` check still uses `==` (see Follow-ups). _Resolved in the 2026-05-24 webhook-auth + CI entry below._
 - `python app/web_server.py` still works for ad-hoc runs.
 
 ### Tests
@@ -467,9 +605,10 @@ uvicorn[standard]==0.32.1
 These are surfaced for future work, intentionally kept out of this change to
 limit blast radius:
 
-1. **Constant-time webhook auth.** `/api/whale-signal` compares the
+1. **Constant-time webhook auth.** ~~`/api/whale-signal` compares the
    `Authorization` header with `==`. Should switch to
-   `hmac.compare_digest(...)` to remove a timing-attack surface.
+   `hmac.compare_digest(...)` to remove a timing-attack surface.~~
+   Done in `app/web_server.py:_whale_webhook_auth_ok` (2026-05-24).
 2. **`docker-compose.yml` magic password.** `POSTGRES_PASSWORD=your_strong_password`
    is committed verbatim. Should be `${POSTGRES_PASSWORD:?...}` and live in `.env`.
 3. **CLI scripts still create-and-close their own pools** (`run_*.py`,

@@ -7,8 +7,7 @@ from typing import Any
 import httpx
 from dotenv import load_dotenv
 
-from app.http_utils import UpstreamUnavailable, request_with_retry
-
+from app.http_utils import request_with_retry
 
 load_dotenv()
 

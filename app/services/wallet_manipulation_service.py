@@ -8,7 +8,6 @@ import httpx
 
 from app.helius import HeliusClient
 
-
 TOP_HOLDER_LIMIT = 3
 TRANSACTION_LIMIT = 30
 SHARED_FUNDER_WARNING = 2

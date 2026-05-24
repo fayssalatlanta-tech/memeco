@@ -1,15 +1,13 @@
+import asyncio
 import logging
 import math
-import asyncio
 import os
 import time
 from typing import Any
 
-
 import httpx
 
 from app.http_utils import UpstreamUnavailable, request_with_retry
-
 
 logger = logging.getLogger(__name__)
 

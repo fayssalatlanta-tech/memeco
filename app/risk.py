@@ -6,7 +6,6 @@ import asyncpg
 
 from app.validation import require_keys
 
-
 VALID_RISK_LEVELS = {"PASS", "INFO", "WARNING", "DANGER", "UNKNOWN"}
 
 MIN_LIQUIDITY_USD = Decimal("5000")
