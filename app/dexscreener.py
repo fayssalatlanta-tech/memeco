@@ -8,6 +8,8 @@ from typing import Any
 
 import httpx
 
+from app.http_utils import UpstreamUnavailable, request_with_retry
+
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +148,29 @@ def sort_discovered_pairs_by_recency(
 
 
 class DexScreenerClient:
+    """
+    DexScreener HTTP client.
+
+    Behavior:
+        * One persistent ``httpx.AsyncClient`` is reused for the lifetime of
+          the instance (TLS handshake reused across calls).
+        * Requests are rate-limited to no more than one every
+          ``DEXSCREENER_MIN_REQUEST_INTERVAL_SECONDS`` seconds (default 0.35).
+        * Transient failures (429 / 5xx / network / timeout) are retried
+          automatically with exponential backoff + jitter.
+        * On persistent upstream failure, public methods log loudly and
+          return their natural empty value (``[]`` / ``{}`` / ``None``)
+          to preserve current call-site semantics. Callers that need to
+          distinguish "no data" from "upstream broken" can use the
+          ``_strict`` variants which raise :class:`UpstreamUnavailable`.
+
+    Use as an async context manager to ensure the underlying client is
+    closed::
+
+        async with DexScreenerClient() as client:
+            ...
+    """
+
     BASE_URL = "https://api.dexscreener.com"
 
     def __init__(self) -> None:
@@ -159,8 +184,32 @@ class DexScreenerClient:
             "Accept": "application/json",
             "User-Agent": "QuantIntelligencePlatform/1.0",
         }
+        self._client: httpx.AsyncClient | None = None
 
-    async def _get_json(self, url: str) -> Any:
+    # ---- Connection lifecycle -------------------------------------------------
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=self.timeout,
+                headers=self.headers,
+            )
+        return self._client
+
+    async def aclose(self) -> None:
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+        self._client = None
+
+    async def __aenter__(self) -> "DexScreenerClient":
+        return self
+
+    async def __aexit__(self, *_exc_info: Any) -> None:
+        await self.aclose()
+
+    # ---- Rate limiter & low-level GET ----------------------------------------
+
+    async def _wait_for_rate_limit(self) -> None:
         async with self._rate_lock:
             elapsed = time.monotonic() - self._last_request_at
             wait_for = self.min_request_interval_seconds - elapsed
@@ -168,74 +217,38 @@ class DexScreenerClient:
                 await asyncio.sleep(wait_for)
             self._last_request_at = time.monotonic()
 
-        async with httpx.AsyncClient(timeout=self.timeout, headers=self.headers) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            return response.json()
+    async def _get_json(self, url: str) -> Any:
+        """
+        Issue a rate-limited, retried GET. Raises :class:`UpstreamUnavailable`
+        on persistent failure. Non-retryable HTTP errors (e.g. 404) propagate
+        as :class:`httpx.HTTPStatusError`.
+        """
+        await self._wait_for_rate_limit()
+        client = self._get_client()
+        response = await request_with_retry(client, "GET", url)
+        return response.json()
+
+    # ---- Public API (back-compat: log + empty on failure) --------------------
 
     async def get_latest_profiles(self) -> list[dict[str, Any]]:
         url = f"{self.BASE_URL}/token-profiles/latest/v1"
-
-        try:
-            data = await self._get_json(url)
-
-            if isinstance(data, list):
-                return data
-
-            logger.warning("Unexpected latest profiles response format")
-            return []
-
-        except httpx.HTTPStatusError as e:
-            logger.error("DexScreener HTTP error: %s", e.response.status_code)
-            return []
-
-        except httpx.RequestError as e:
-            logger.error("DexScreener request error: %s", e)
-            return []
-
-    async def _get_latest_list(self, endpoint: str, label: str) -> list[dict[str, Any]]:
-        url = f"{self.BASE_URL}{endpoint}"
-
-        try:
-            data = await self._get_json(url)
-
-            if isinstance(data, list):
-                return data
-
-            logger.warning("Unexpected %s response format", label)
-            return []
-
-        except httpx.HTTPStatusError as e:
-            logger.error("DexScreener %s HTTP error: %s", label, e.response.status_code)
-            return []
-
-        except httpx.RequestError as e:
-            logger.error("DexScreener %s request error: %s", label, e)
-            return []
+        return await self._safe_get_list(url, "latest profiles")
 
     async def get_latest_community_takeovers(self) -> list[dict[str, Any]]:
-        return await self._get_latest_list(
-            LATEST_SOURCE_ENDPOINTS["community_takeover"],
-            "community takeovers",
-        )
+        url = f"{self.BASE_URL}{LATEST_SOURCE_ENDPOINTS['community_takeover']}"
+        return await self._safe_get_list(url, "community takeovers")
 
     async def get_latest_ads(self) -> list[dict[str, Any]]:
-        return await self._get_latest_list(
-            LATEST_SOURCE_ENDPOINTS["ad"],
-            "latest ads",
-        )
+        url = f"{self.BASE_URL}{LATEST_SOURCE_ENDPOINTS['ad']}"
+        return await self._safe_get_list(url, "latest ads")
 
     async def get_latest_boosted_tokens(self) -> list[dict[str, Any]]:
-        return await self._get_latest_list(
-            LATEST_SOURCE_ENDPOINTS["boost_latest"],
-            "latest boosts",
-        )
+        url = f"{self.BASE_URL}{LATEST_SOURCE_ENDPOINTS['boost_latest']}"
+        return await self._safe_get_list(url, "latest boosts")
 
     async def get_top_boosted_tokens(self) -> list[dict[str, Any]]:
-        return await self._get_latest_list(
-            LATEST_SOURCE_ENDPOINTS["boost_top"],
-            "top boosts",
-        )
+        url = f"{self.BASE_URL}{LATEST_SOURCE_ENDPOINTS['boost_top']}"
+        return await self._safe_get_list(url, "top boosts")
 
     async def get_token_pairs(
         self,
@@ -243,27 +256,7 @@ class DexScreenerClient:
         token_address: str,
     ) -> list[dict[str, Any]]:
         url = f"{self.BASE_URL}/token-pairs/v1/{chain_id}/{token_address}"
-
-        try:
-            data = await self._get_json(url)
-
-            if isinstance(data, list):
-                return data
-
-            logger.warning("Unexpected token pairs response format")
-            return []
-
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                "DexScreener HTTP error for %s: %s",
-                token_address,
-                e.response.status_code,
-            )
-            return []
-
-        except httpx.RequestError as e:
-            logger.error("DexScreener request error for %s: %s", token_address, e)
-            return []
+        return await self._safe_get_list(url, f"token pairs ({token_address})")
 
     async def get_tokens(
         self,
@@ -275,27 +268,7 @@ class DexScreenerClient:
             return []
 
         url = f"{self.BASE_URL}/tokens/v1/{chain_id}/{','.join(cleaned[:30])}"
-
-        try:
-            data = await self._get_json(url)
-
-            if isinstance(data, list):
-                return data
-
-            logger.warning("Unexpected token batch response format")
-            return []
-
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                "DexScreener batch HTTP error for %s tokens: %s",
-                len(cleaned),
-                e.response.status_code,
-            )
-            return []
-
-        except httpx.RequestError as e:
-            logger.error("DexScreener batch request error: %s", e)
-            return []
+        return await self._safe_get_list(url, f"token batch ({len(cleaned)})")
 
     async def get_token_orders(
         self,
@@ -303,27 +276,24 @@ class DexScreenerClient:
         token_address: str,
     ) -> dict[str, Any]:
         url = f"{self.BASE_URL}/orders/v1/{chain_id}/{token_address}"
-
         try:
             data = await self._get_json(url)
-
-            if isinstance(data, dict):
-                return data
-
-            logger.warning("Unexpected token orders response format")
+        except UpstreamUnavailable as exc:
+            logger.error("DexScreener orders upstream unavailable for %s: %s", token_address, exc)
             return {}
-
-        except httpx.HTTPStatusError as e:
+        except httpx.HTTPStatusError as exc:
             logger.error(
-                "DexScreener orders HTTP error for %s: %s",
+                "DexScreener orders HTTP %d for %s",
+                exc.response.status_code,
                 token_address,
-                e.response.status_code,
             )
             return {}
 
-        except httpx.RequestError as e:
-            logger.error("DexScreener orders request error for %s: %s", token_address, e)
-            return {}
+        if isinstance(data, dict):
+            return data
+
+        logger.warning("Unexpected token orders response format for %s", token_address)
+        return {}
 
     async def get_preferred_token_pair(
         self,
@@ -331,10 +301,8 @@ class DexScreenerClient:
         token_address: str,
     ) -> dict[str, Any] | None:
         pairs = await self.get_token_pairs(chain_id, token_address)
-
         if not pairs:
             return None
-
         return select_preferred_pair(pairs, chain_id)
 
     async def get_best_pair_by_liquidity(
@@ -343,3 +311,48 @@ class DexScreenerClient:
         token_address: str,
     ) -> dict[str, Any] | None:
         return await self.get_preferred_token_pair(chain_id, token_address)
+
+    # ---- Strict variants (raise UpstreamUnavailable) -------------------------
+
+    async def get_token_pairs_strict(
+        self,
+        chain_id: str,
+        token_address: str,
+    ) -> list[dict[str, Any]]:
+        """
+        Like :meth:`get_token_pairs` but raises :class:`UpstreamUnavailable`
+        on persistent failure instead of swallowing it as ``[]``. Use this
+        when callers need to distinguish "no pairs" from "couldn't reach
+        DexScreener" (e.g. to record a ``data_unavailable`` risk_check).
+        """
+        url = f"{self.BASE_URL}/token-pairs/v1/{chain_id}/{token_address}"
+        data = await self._get_json(url)  # may raise UpstreamUnavailable
+        return data if isinstance(data, list) else []
+
+    async def get_preferred_token_pair_strict(
+        self,
+        chain_id: str,
+        token_address: str,
+    ) -> dict[str, Any] | None:
+        pairs = await self.get_token_pairs_strict(chain_id, token_address)
+        if not pairs:
+            return None
+        return select_preferred_pair(pairs, chain_id)
+
+    # ---- Internals -----------------------------------------------------------
+
+    async def _safe_get_list(self, url: str, label: str) -> list[dict[str, Any]]:
+        try:
+            data = await self._get_json(url)
+        except UpstreamUnavailable as exc:
+            logger.error("DexScreener upstream unavailable for %s: %s", label, exc)
+            return []
+        except httpx.HTTPStatusError as exc:
+            logger.error("DexScreener %s HTTP %d", label, exc.response.status_code)
+            return []
+
+        if isinstance(data, list):
+            return data
+
+        logger.warning("Unexpected %s response format", label)
+        return []

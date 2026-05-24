@@ -7,6 +7,131 @@ the project.
 
 ---
 
+## 2026-05-24 — Retries with backoff, Helius rate limit, batched risk_check inserts
+
+### Why
+
+Three connected reliability / performance issues:
+
+1. **No retry/backoff on external APIs.** `DexScreenerClient` and
+   `HeliusClient` swallowed errors and returned `[]` / `{}`. A single 429
+   or transient 5xx silently became "no data" and the pipeline recorded a
+   misleading clean analysis with no warning.
+2. **Helius had no rate limiter and opened a fresh `httpx.AsyncClient`
+   per call.** Wallet-manipulation, cluster, dev-flow and reverse-discovery
+   all hammered Helius with no backpressure. Every call paid the TLS
+   handshake cost.
+3. **`risk.add_basic_risk_checks` did ~10 sequential `pool.acquire()`
+   round-trips per token.** Easy 10× speedup at this layer by batching
+   into one transaction with `executemany`.
+
+### What changed
+
+#### `app/http_utils.py` (new)
+
+- `UpstreamUnavailable` exception — raised when retries are exhausted on
+  a transient error. Lets callers distinguish "endpoint says no data"
+  (e.g. 404 → `httpx.HTTPStatusError`) from "we couldn't reach upstream"
+  (→ `UpstreamUnavailable`).
+- `is_retryable_http_error()` — predicate for tenacity. Retries on 429,
+  any 5xx, timeouts, network errors. Does **not** retry on other 4xx.
+- `request_with_retry()` — wraps `httpx.AsyncClient.request()` with
+  `tenacity.AsyncRetrying`, exponential backoff with random jitter
+  (1s … 30s), max 5 attempts by default.
+
+#### `app/dexscreener.py`
+
+- One persistent `httpx.AsyncClient` is reused across calls (TLS reuse).
+- `aclose()` + async context manager protocol added for clean shutdown.
+- All HTTP calls go through `_get_json()` → `request_with_retry()`.
+- Public methods (`get_latest_profiles`, `get_token_pairs`, …) keep
+  back-compatible "log + return empty" behavior on `UpstreamUnavailable`
+  so existing service callers continue to skip-and-continue.
+- Added strict variants `get_token_pairs_strict()` and
+  `get_preferred_token_pair_strict()` that raise `UpstreamUnavailable`.
+  These are used by the ingestion pipeline so it can record a
+  `data_unavailable` risk_check on persistent failure.
+
+#### `app/helius.py`
+
+- Same shared-client + rate-limit pattern as DexScreener. Configurable via
+  `HELIUS_MIN_REQUEST_INTERVAL_SECONDS` (default 0.1).
+- All HTTP and JSON-RPC calls now go through `_request()` →
+  `request_with_retry()`.
+- `aclose()` + async context manager added.
+- Public methods now raise `UpstreamUnavailable` on persistent failure
+  rather than returning silently empty results. Existing callers already
+  catch broad exceptions in their per-item loops so this fails loud where
+  before it failed silent.
+
+#### `app/risk.py`
+
+- `add_basic_risk_checks()` now builds a list of validated tuples and
+  performs **one** `pool.acquire()` + transaction + `executemany`. Drops
+  ~10 round-trips per ingested token to one. The function returns the
+  number of rows inserted.
+- New `insert_risk_checks(pool, rows)` for general-purpose batch inserts.
+- New `record_data_unavailable(...)` helper writes the canonical
+  `data_unavailable` risk_check row when an upstream API was reachable-
+  but-broken after retries.
+- `insert_risk_check()` (single-row + RETURNING) is preserved for the
+  occasional caller that needs the inserted row back.
+
+#### `app/ingest_dexscreener.py`
+
+- Uses `get_preferred_token_pair_strict()` for the per-token pair fetch.
+- On `UpstreamUnavailable`, upserts a minimal token row and writes one
+  `data_unavailable` risk_check before re-raising. Result: when
+  DexScreener has a bad day, you get a paper trail instead of an empty
+  watchlist row that looks like "we analyzed it and found nothing."
+- Closes the shared `DexScreenerClient` in `finally` so the underlying
+  `httpx.AsyncClient` is released cleanly.
+
+#### `pyproject.toml` / `requirements.txt`
+
+- Added `tenacity>=9.0.0`.
+
+### Backwards compatibility
+
+- All public method signatures unchanged for DexScreener; new strict
+  variants are additive.
+- Helius public methods now raise `UpstreamUnavailable` instead of
+  silently empty — services already catch broad exceptions per-item.
+- `add_basic_risk_checks` previously returned `None`; now returns the
+  count of inserted rows. No caller in the codebase reads this return
+  value, so this is a non-breaking enrichment.
+- `risk_checks` table schema is unchanged.
+
+### Tests
+
+- New `tests/test_http_utils.py`: 12 tests covering the retry predicate
+  (429/5xx retried, 4xx not retried, timeouts retried) plus end-to-end
+  `request_with_retry()` behavior using a fake `AsyncClient` (succeeds
+  on first try, retries 429 then succeeds, retries 503 then succeeds,
+  4xx propagates immediately, persistent 429 raises `UpstreamUnavailable`,
+  persistent timeout raises `UpstreamUnavailable`).
+- New `tests/test_risk_batch.py`: pins the batched-insert behavior with
+  a fake pool — asserts `pool.acquire()` is called exactly once and that
+  one `executemany` writes all 9 rows. A second test verifies low
+  liquidity still emits a `DANGER` row.
+- All 52 existing tests still pass (66 total).
+
+### Follow-ups identified during this work (NOT addressed here)
+
+- The shared-instance rate limiter only bounds requests per
+  `DexScreenerClient` / `HeliusClient` instance. Several services still
+  construct their own client per run, so concurrent runs can collectively
+  exceed the upstream rate limit. Promoting the clients to FastAPI
+  `lifespan`-managed singletons (next to the asyncpg pool) would close
+  this gap.
+- The "data unavailable" risk_check is recorded for the DexScreener pair
+  fetch in ingest. Helius-driven services (cluster, dev-flow, wallet
+  intelligence) still skip-and-continue on `UpstreamUnavailable`. They
+  could record their own `data_unavailable` rows to make Helius outages
+  equally visible in the dashboard.
+
+---
+
 ## 2026-05-24 — Proper package structure, migration tool, remove dual-import hacks
 
 ### Why
@@ -358,8 +483,9 @@ limit blast radius:
    `psql`. Adding Alembic / dbmate / a tiny `apply_migrations.py` would make
    onboarding and deploys safer.~~
    Done in `app/apply_migrations.py` + `memeco-migrate` (2026-05-24).
-6. **No retry/backoff on DexScreener / Helius.** Transient 429/5xx is silently
-   swallowed and recorded as "no data." Add `tenacity` with jitter.
+6. **No retry/backoff on DexScreener / Helius.** ~~Transient 429/5xx is silently
+   swallowed and recorded as "no data." Add `tenacity` with jitter.~~
+   Done in `app/http_utils.py` + `tenacity` retry wiring (2026-05-24).
 
 ---
 

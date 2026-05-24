@@ -10,11 +10,12 @@ from app.dexscreener import (
     dedupe_latest_candidates,
     sort_discovered_pairs_by_recency,
 )
+from app.http_utils import UpstreamUnavailable
 from app.tokens import upsert_token
 from app.pairs import upsert_token_pair
 from app.prices import upsert_token_price
 from app.system import start_ingestion_run, finish_ingestion_run, save_raw_snapshot
-from app.risk import add_basic_risk_checks
+from app.risk import add_basic_risk_checks, record_data_unavailable
 
 
 logging.basicConfig(
@@ -83,10 +84,42 @@ async def ingest_token(
         raw_json=token_orders,
     )
 
-    best_pair = selected_pair or await client.get_preferred_token_pair(
-        "solana",
-        token_address,
-    )
+    if selected_pair is not None:
+        best_pair = selected_pair
+    else:
+        # Strict variant so we can tell "no DEX pair" (None) apart from
+        # "DexScreener was unreachable" (UpstreamUnavailable). The latter
+        # is recorded as a data_unavailable risk_check so the run leaves
+        # a paper trail instead of looking like a successful empty analysis.
+        try:
+            best_pair = await client.get_preferred_token_pair_strict(
+                "solana",
+                token_address,
+            )
+        except UpstreamUnavailable as exc:
+            saved_token = await upsert_token(
+                pool,
+                {
+                    "chain": "solana",
+                    "address": token_address,
+                    "symbol": (profile or {}).get("symbol"),
+                    "name": (profile or {}).get("description"),
+                    "decimals": None,
+                    "source": "dexscreener",
+                    "creator_address": None,
+                },
+            )
+            await record_data_unavailable(
+                pool=pool,
+                token_id=saved_token["id"],
+                pair_id=None,
+                run_id=run_id,
+                source="dexscreener",
+                endpoint="/token-pairs/v1/solana/{tokenAddress}",
+                reason=str(exc),
+                token_address=token_address,
+            )
+            raise
 
     if not best_pair:
         raise ValueError(
@@ -310,6 +343,7 @@ async def ingest_manual_token(token_address: str) -> dict:
             )
         raise
     finally:
+        await client.aclose()
         await pool.close()
 
 
@@ -427,6 +461,7 @@ async def main():
         raise
 
     finally:
+        await client.aclose()
         await pool.close()
 
 
