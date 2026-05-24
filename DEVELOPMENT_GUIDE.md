@@ -18,6 +18,7 @@ Main layers:
 - `pyproject.toml`: package metadata, dependencies, and console script entry points.
 - `app/__init__.py`: marks `app/` as an importable Python package.
 - `app/apply_migrations.py`: migration runner — tracks applied SQL in `schema_migrations` table.
+- `app/http_utils.py`: shared `tenacity` retry helpers + `UpstreamUnavailable` exception used by both external API clients.
 - `app/ingest_dexscreener.py`: discovers latest candidates from DexScreener profiles, ads, boosts, and community takeovers, then saves newest completed DEX pairs.
 - `app/dexscreener.py`: selected pair and discovery helper logic. This is important because Pump.fun bonding pairs and later DEX pairs can coexist. The current rule skips bonding-only `pumpfun` pairs and analyzes only completed non-bonding DEX pairs.
 - `app/services/market_filter_service.py`: momentum, age, activity, and dump-risk filter.
@@ -146,6 +147,35 @@ To add a new migration:
   the `token_prices_hourly` continuous aggregate, not in the raw table.
   When adding features that need older raw price rows, query the continuous
   aggregate instead of extending retention.
+
+## External API Calls
+
+External clients (`DexScreenerClient`, `HeliusClient`) live in `app/dexscreener.py`
+and `app/helius.py`. They share these conventions:
+
+- One persistent `httpx.AsyncClient` per instance (TLS handshake reused).
+  Use the client as an async context manager (`async with HeliusClient() as h:`)
+  or call `await client.aclose()` in a `finally` block to release sockets.
+- Outgoing requests pass through a shared rate limiter. Tunable via
+  `DEXSCREENER_MIN_REQUEST_INTERVAL_SECONDS` (default 0.35) and
+  `HELIUS_MIN_REQUEST_INTERVAL_SECONDS` (default 0.1).
+- Transient failures (429 / 5xx / timeouts / network errors) are retried
+  with exponential backoff and jitter via `tenacity`, configured in
+  `app/http_utils.py`. After ~5 attempts the call raises `UpstreamUnavailable`.
+- 4xx errors other than 429 are **not** retried — they propagate as
+  `httpx.HTTPStatusError`.
+- When ingesting data and the upstream is unreachable, write one
+  `data_unavailable` risk_check row via `risk.record_data_unavailable(...)`
+  instead of silently producing an empty analysis. The DexScreener path
+  in `app/ingest_dexscreener.py` is the canonical example.
+
+## Database Write Performance
+
+- Bulk inserts: prefer one `pool.acquire()` + transaction + `executemany`
+  over a loop of individual `await conn.execute(...)` calls. Each
+  `pool.acquire()` is a round-trip; the difference is 10× at the per-token
+  ingest level. See `risk.add_basic_risk_checks()` and
+  `risk.insert_risk_checks()` for the pattern.
 
 ## Current API Surface
 
