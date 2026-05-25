@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -19,6 +20,12 @@ LINKED_WALLET_DANGER = 4
 COORDINATED_DUMP_WARNING = 2
 COORDINATED_DUMP_DANGER = 3
 COORDINATED_DUMP_WINDOW = timedelta(minutes=10)
+
+# Helius parallelism. The HeliusClient already enforces a process-wide
+# minimum interval between calls via its rate-lock, so requests still go
+# out in a controlled stream — the semaphore just bounds in-flight tasks
+# and parallel TLS work without exceeding the rate limit.
+HELIUS_PARALLELISM = 10
 
 
 def unix_to_datetime(value) -> datetime | None:
@@ -351,6 +358,7 @@ def classify_manipulation(
 
 async def get_manipulation_inputs(
     pool: asyncpg.Pool,
+    run_id: int | None = None,
     holder_limit: int = TOP_HOLDER_LIMIT,
 ) -> list[dict[str, Any]]:
     sql = """
@@ -383,7 +391,7 @@ async def get_manipulation_inputs(
             FROM token_holders th
             WHERE th.run_id = wa.run_id
               AND th.token_id = wa.token_id
-              AND th.rank <= $1
+              AND th.rank <= $2
             ORDER BY th.rank
         ) ranked
     ) holders ON TRUE
@@ -401,15 +409,12 @@ async def get_manipulation_inputs(
         WHERE fe.run_id = wa.run_id
           AND fe.token_id = wa.token_id
     ) funding_edges ON TRUE
-    WHERE wa.run_id = (
-        SELECT MAX(id)
-        FROM ingestion_runs
-    )
+    WHERE wa.run_id = COALESCE($1, (SELECT MAX(id) FROM ingestion_runs))
     ORDER BY wa.created_at DESC;
     """
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(sql, holder_limit)
+        rows = await conn.fetch(sql, run_id, holder_limit)
 
     return [dict(row) for row in rows]
 
@@ -419,97 +424,113 @@ async def save_relationship_edge(
     row: dict[str, Any],
     edge: dict[str, Any],
 ) -> None:
-    sql = """
-    INSERT INTO wallet_relationship_edges (
-        run_id,
-        token_id,
-        pair_id,
-        from_wallet,
-        to_wallet,
-        relation_type,
-        amount,
-        signature,
-        timestamp,
-        source,
-        raw_json
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'helius', $10::jsonb)
-    ON CONFLICT (
-        run_id,
-        token_id,
-        relation_type,
-        from_wallet,
-        to_wallet,
-        signature
-    )
-    DO UPDATE SET
-        pair_id = EXCLUDED.pair_id,
-        amount = EXCLUDED.amount,
-        timestamp = EXCLUDED.timestamp,
-        raw_json = EXCLUDED.raw_json,
-        created_at = NOW();
-    """
+    """Insert a single relationship edge.
 
+    Kept for back-compat with anything that imports it directly. The hot
+    path in ``run_wallet_manipulation_service`` now uses
+    :func:`save_token_manipulation_state` to batch all per-token writes.
+    """
     async with pool.acquire() as conn:
         await conn.execute(
-            sql,
-            row["run_id"],
-            row["token_id"],
-            row["pair_id"],
-            edge.get("from_wallet"),
-            edge.get("to_wallet"),
-            edge["relation_type"],
-            edge.get("amount"),
-            edge.get("signature"),
-            edge.get("timestamp"),
-            json.dumps(edge.get("raw_json") or {}, default=str),
+            _INSERT_RELATIONSHIP_EDGE_SQL,
+            *_relationship_edge_params(row, edge),
         )
 
 
-async def save_manipulation_result(
-    pool: asyncpg.Pool,
+_INSERT_RELATIONSHIP_EDGE_SQL = """
+INSERT INTO wallet_relationship_edges (
+    run_id,
+    token_id,
+    pair_id,
+    from_wallet,
+    to_wallet,
+    relation_type,
+    amount,
+    signature,
+    timestamp,
+    source,
+    raw_json
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'helius', $10::jsonb)
+ON CONFLICT (
+    run_id,
+    token_id,
+    relation_type,
+    from_wallet,
+    to_wallet,
+    signature
+)
+DO UPDATE SET
+    pair_id = EXCLUDED.pair_id,
+    amount = EXCLUDED.amount,
+    timestamp = EXCLUDED.timestamp,
+    raw_json = EXCLUDED.raw_json,
+    created_at = NOW();
+"""
+
+
+def _relationship_edge_params(
+    row: dict[str, Any],
+    edge: dict[str, Any],
+) -> tuple[Any, ...]:
+    return (
+        row["run_id"],
+        row["token_id"],
+        row["pair_id"],
+        edge.get("from_wallet"),
+        edge.get("to_wallet"),
+        edge["relation_type"],
+        edge.get("amount"),
+        edge.get("signature"),
+        edge.get("timestamp"),
+        json.dumps(edge.get("raw_json") or {}, default=str),
+    )
+
+
+_INSERT_MANIPULATION_RESULT_SQL = """
+INSERT INTO wallet_manipulation_results (
+    run_id,
+    token_id,
+    pair_id,
+    manipulation_status,
+    manipulation_pass,
+    manipulation_reason,
+    manipulation_score,
+    shared_funder_cluster_size,
+    token_distributor_count,
+    linked_wallet_count,
+    coordinated_dump_count,
+    warnings,
+    details
+)
+VALUES (
+    $1, $2, $3,
+    $4, $5, $6, $7,
+    $8, $9, $10, $11,
+    $12::jsonb, $13::jsonb
+)
+ON CONFLICT (run_id, token_id)
+DO UPDATE SET
+    pair_id = EXCLUDED.pair_id,
+    manipulation_status = EXCLUDED.manipulation_status,
+    manipulation_pass = EXCLUDED.manipulation_pass,
+    manipulation_reason = EXCLUDED.manipulation_reason,
+    manipulation_score = EXCLUDED.manipulation_score,
+    shared_funder_cluster_size = EXCLUDED.shared_funder_cluster_size,
+    token_distributor_count = EXCLUDED.token_distributor_count,
+    linked_wallet_count = EXCLUDED.linked_wallet_count,
+    coordinated_dump_count = EXCLUDED.coordinated_dump_count,
+    warnings = EXCLUDED.warnings,
+    details = EXCLUDED.details,
+    created_at = NOW()
+RETURNING *;
+"""
+
+
+def _manipulation_result_params(
     row: dict[str, Any],
     result: dict[str, Any],
-) -> dict[str, Any]:
-    sql = """
-    INSERT INTO wallet_manipulation_results (
-        run_id,
-        token_id,
-        pair_id,
-        manipulation_status,
-        manipulation_pass,
-        manipulation_reason,
-        manipulation_score,
-        shared_funder_cluster_size,
-        token_distributor_count,
-        linked_wallet_count,
-        coordinated_dump_count,
-        warnings,
-        details
-    )
-    VALUES (
-        $1, $2, $3,
-        $4, $5, $6, $7,
-        $8, $9, $10, $11,
-        $12::jsonb, $13::jsonb
-    )
-    ON CONFLICT (run_id, token_id)
-    DO UPDATE SET
-        pair_id = EXCLUDED.pair_id,
-        manipulation_status = EXCLUDED.manipulation_status,
-        manipulation_pass = EXCLUDED.manipulation_pass,
-        manipulation_reason = EXCLUDED.manipulation_reason,
-        manipulation_score = EXCLUDED.manipulation_score,
-        shared_funder_cluster_size = EXCLUDED.shared_funder_cluster_size,
-        token_distributor_count = EXCLUDED.token_distributor_count,
-        linked_wallet_count = EXCLUDED.linked_wallet_count,
-        coordinated_dump_count = EXCLUDED.coordinated_dump_count,
-        warnings = EXCLUDED.warnings,
-        details = EXCLUDED.details,
-        created_at = NOW()
-    RETURNING *;
-    """
-
+) -> tuple[Any, ...]:
     details = {
         "symbol": row.get("symbol"),
         "token_address": row.get("token_address"),
@@ -518,98 +539,198 @@ async def save_manipulation_result(
         "largest_shared_funder": result.get("largest_shared_funder"),
         "largest_token_distributor": result.get("largest_token_distributor"),
     }
+    return (
+        row["run_id"],
+        row["token_id"],
+        row["pair_id"],
+        result["manipulation_status"],
+        result["manipulation_pass"],
+        result["manipulation_reason"],
+        result["manipulation_score"],
+        result["shared_funder_cluster_size"],
+        result["token_distributor_count"],
+        result["linked_wallet_count"],
+        result["coordinated_dump_count"],
+        json.dumps(result["warnings"]),
+        json.dumps(details, default=str),
+    )
 
+
+async def save_manipulation_result(
+    pool: asyncpg.Pool,
+    row: dict[str, Any],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """Upsert the manipulation result row for a single token. Back-compat entry."""
     async with pool.acquire() as conn:
         saved = await conn.fetchrow(
-            sql,
-            row["run_id"],
-            row["token_id"],
-            row["pair_id"],
-            result["manipulation_status"],
-            result["manipulation_pass"],
-            result["manipulation_reason"],
-            result["manipulation_score"],
-            result["shared_funder_cluster_size"],
-            result["token_distributor_count"],
-            result["linked_wallet_count"],
-            result["coordinated_dump_count"],
-            json.dumps(result["warnings"]),
-            json.dumps(details, default=str),
+            _INSERT_MANIPULATION_RESULT_SQL,
+            *_manipulation_result_params(row, result),
         )
 
     return dict(saved)
 
 
-async def run_wallet_manipulation_service(pool: asyncpg.Pool) -> list[dict[str, Any]]:
-    rows = await get_manipulation_inputs(pool)
-    client = HeliusClient()
-    results = []
+async def save_token_manipulation_state(
+    pool: asyncpg.Pool,
+    row: dict[str, Any],
+    edges: list[dict[str, Any]],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Write all per-token manipulation persistence in a single transaction:
 
-    for row in rows:
-        holders = normalize_holders(row.get("holders"))
-        funding_edges = normalize_holders(row.get("funding_edges"))
-        holder_addresses = [
-            holder["owner_address"]
-            for holder in holders
-            if holder.get("owner_address")
-        ]
-        holder_set = set(holder_addresses)
+      * upsert each relationship edge via ``executemany``
+      * upsert the manipulation result row
 
-        if not client.is_configured:
-            result = {
-                "manipulation_status": "MANIPULATION_UNKNOWN",
-                "manipulation_pass": False,
-                "manipulation_reason": "HELIUS_API_KEY is missing",
-                "manipulation_score": 0,
-                "shared_funder_cluster_size": 0,
-                "largest_shared_funder": None,
-                "token_distributor_count": 0,
-                "largest_token_distributor": None,
-                "linked_wallet_count": 0,
-                "coordinated_dump_count": 0,
-                "warnings": ["HELIUS_NOT_CONFIGURED"],
-                "details": {"holder_count": len(holders), "edge_count": 0, "dump_event_count": 0},
-            }
-            saved = await save_manipulation_result(pool, row, result)
-            results.append(saved)
-            continue
+    One ``pool.acquire()`` per token instead of one per edge + one for the
+    result. With 3 holders × 30 transactions this typically collapses
+    dozens of round-trips into one.
+    """
+    edge_params = [_relationship_edge_params(row, edge) for edge in edges]
 
-        all_edges = []
-        all_dump_events = []
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            if edge_params:
+                await conn.executemany(_INSERT_RELATIONSHIP_EDGE_SQL, edge_params)
 
-        for holder_address in holder_addresses:
-            try:
-                transactions = await client.get_address_transactions(
-                    holder_address,
-                    limit=TRANSACTION_LIMIT,
-                )
-            except (httpx.HTTPError, RuntimeError, json.JSONDecodeError):
-                transactions = []
-
-            edges, dump_events = extract_relationship_edges(
-                holder_address=holder_address,
-                holder_set=holder_set,
-                token_address=row["token_address"],
-                transactions=transactions,
+            saved = await conn.fetchrow(
+                _INSERT_MANIPULATION_RESULT_SQL,
+                *_manipulation_result_params(row, result),
             )
-            all_edges.extend(edges)
-            all_dump_events.extend(dump_events)
 
-        deduped_edges = list({edge_key(edge): edge for edge in all_edges}.values())
+    return dict(saved)
 
-        for edge in deduped_edges:
-            await save_relationship_edge(pool, row, edge)
 
-        result = classify_manipulation(
-            holder_count=len(holders),
-            edges=deduped_edges,
-            existing_funding_edges=funding_edges,
-            dump_events=all_dump_events,
-            holder_set=holder_set,
-        )
-        saved = await save_manipulation_result(pool, row, result)
+async def _fetch_holder_relationship_data(
+    client: HeliusClient,
+    holder_address: str,
+    holder_set: set[str],
+    token_address: str,
+    semaphore: asyncio.Semaphore,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """
+    Fetch one holder's recent transactions from Helius and reduce them to
+    ``(edges, dump_events)``. Always returns two lists, never raises:
+    transient errors collapse to empty results so the per-token classifier
+    still has data from the other holders.
+
+    The semaphore caps concurrent in-flight tasks. The HeliusClient's own
+    rate limiter then serializes the actual outbound requests.
+    """
+    async with semaphore:
+        try:
+            transactions = await client.get_address_transactions(
+                holder_address,
+                limit=TRANSACTION_LIMIT,
+            )
+        except (httpx.HTTPError, RuntimeError, json.JSONDecodeError):
+            transactions = []
+
+    return extract_relationship_edges(
+        holder_address=holder_address,
+        holder_set=holder_set,
+        token_address=token_address,
+        transactions=transactions,
+    )
+
+
+async def _process_token(
+    pool: asyncpg.Pool,
+    client: HeliusClient,
+    row: dict[str, Any],
+    semaphore: asyncio.Semaphore,
+) -> dict[str, Any]:
+    holders = normalize_holders(row.get("holders"))
+    funding_edges = normalize_holders(row.get("funding_edges"))
+    holder_addresses = [
+        holder["owner_address"]
+        for holder in holders
+        if holder.get("owner_address")
+    ]
+    holder_set = set(holder_addresses)
+
+    if not client.is_configured:
+        result = {
+            "manipulation_status": "MANIPULATION_UNKNOWN",
+            "manipulation_pass": False,
+            "manipulation_reason": "HELIUS_API_KEY is missing",
+            "manipulation_score": 0,
+            "shared_funder_cluster_size": 0,
+            "largest_shared_funder": None,
+            "token_distributor_count": 0,
+            "largest_token_distributor": None,
+            "linked_wallet_count": 0,
+            "coordinated_dump_count": 0,
+            "warnings": ["HELIUS_NOT_CONFIGURED"],
+            "details": {"holder_count": len(holders), "edge_count": 0, "dump_event_count": 0},
+        }
+        saved = await save_token_manipulation_state(pool, row, edges=[], result=result)
         saved["symbol"] = row.get("symbol")
         saved["token_address"] = row.get("token_address")
-        results.append(saved)
+        return saved
+
+    if holder_addresses:
+        per_holder = await asyncio.gather(
+            *(
+                _fetch_holder_relationship_data(
+                    client,
+                    holder_address,
+                    holder_set,
+                    row["token_address"],
+                    semaphore,
+                )
+                for holder_address in holder_addresses
+            )
+        )
+    else:
+        per_holder = []
+
+    all_edges: list[dict[str, Any]] = []
+    all_dump_events: list[dict[str, Any]] = []
+    for edges, dump_events in per_holder:
+        all_edges.extend(edges)
+        all_dump_events.extend(dump_events)
+
+    deduped_edges = list({edge_key(edge): edge for edge in all_edges}.values())
+
+    result = classify_manipulation(
+        holder_count=len(holders),
+        edges=deduped_edges,
+        existing_funding_edges=funding_edges,
+        dump_events=all_dump_events,
+        holder_set=holder_set,
+    )
+    saved = await save_token_manipulation_state(
+        pool,
+        row,
+        edges=deduped_edges,
+        result=result,
+    )
+    saved["symbol"] = row.get("symbol")
+    saved["token_address"] = row.get("token_address")
+    return saved
+
+
+async def run_wallet_manipulation_service(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+    helius_client: HeliusClient | None = None,
+) -> list[dict[str, Any]]:
+    rows = await get_manipulation_inputs(pool, run_id=run_id)
+
+    semaphore = asyncio.Semaphore(HELIUS_PARALLELISM)
+    results: list[dict[str, Any]] = []
+
+    if helius_client is not None:
+        for row in rows:
+            saved = await _process_token(pool, helius_client, row, semaphore)
+            results.append(saved)
+        return results
+
+    async with HeliusClient() as client:
+        for row in rows:
+            saved = await _process_token(pool, client, row, semaphore)
+            results.append(saved)
 
     return results

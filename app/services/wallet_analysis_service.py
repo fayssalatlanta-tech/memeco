@@ -159,7 +159,10 @@ def classify_wallet_distribution(holders: list[dict[str, Any]]) -> dict[str, Any
     }
 
 
-async def get_wallet_analysis_inputs(pool: asyncpg.Pool) -> list[dict[str, Any]]:
+async def get_wallet_analysis_inputs(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+) -> list[dict[str, Any]]:
     sql = """
     SELECT
         c.run_id,
@@ -172,15 +175,12 @@ async def get_wallet_analysis_inputs(pool: asyncpg.Pool) -> list[dict[str, Any]]
     JOIN tokens t
         ON t.id = c.token_id
     WHERE c.contract_risk_status IS NOT NULL
-      AND c.run_id = (
-          SELECT MAX(id)
-          FROM ingestion_runs
-      )
+      AND c.run_id = COALESCE($1, (SELECT MAX(id) FROM ingestion_runs))
     ORDER BY c.created_at DESC;
     """
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(sql)
+        rows = await conn.fetch(sql, run_id)
 
     return [dict(row) for row in rows]
 
@@ -298,8 +298,11 @@ async def save_wallet_analysis_result(
     return dict(saved)
 
 
-async def run_wallet_analysis_service(pool: asyncpg.Pool) -> list[dict[str, Any]]:
-    rows = await get_wallet_analysis_inputs(pool)
+async def run_wallet_analysis_service(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+) -> list[dict[str, Any]]:
+    rows = await get_wallet_analysis_inputs(pool, run_id=run_id)
 
     results = []
 

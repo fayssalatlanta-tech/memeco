@@ -302,7 +302,10 @@ def analyze_dev_wallet_flow(
     }
 
 
-async def get_dev_flow_inputs(pool: asyncpg.Pool) -> list[dict[str, Any]]:
+async def get_dev_flow_inputs(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+) -> list[dict[str, Any]]:
     sql = """
     SELECT
         c.run_id,
@@ -316,15 +319,12 @@ async def get_dev_flow_inputs(pool: asyncpg.Pool) -> list[dict[str, Any]]:
     FROM contract_risk_results c
     JOIN tokens t
         ON t.id = c.token_id
-    WHERE c.run_id = (
-        SELECT MAX(id)
-        FROM ingestion_runs
-    )
+    WHERE c.run_id = COALESCE($1, (SELECT MAX(id) FROM ingestion_runs))
     ORDER BY c.created_at DESC;
     """
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(sql)
+        rows = await conn.fetch(sql, run_id)
 
     return [dict(row) for row in rows]
 
@@ -474,57 +474,67 @@ async def save_dev_wallet_flow_result(
     return dict(saved)
 
 
-async def run_dev_wallet_flow_service(pool: asyncpg.Pool) -> list[dict[str, Any]]:
-    rows = await get_dev_flow_inputs(pool)
-    client = HeliusClient()
+async def run_dev_wallet_flow_service(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+    helius_client: HeliusClient | None = None,
+) -> list[dict[str, Any]]:
+    rows = await get_dev_flow_inputs(pool, run_id=run_id)
     results = []
 
-    for row in rows:
-        raw_json = normalize_json(row.get("raw_json"))
-        dev_wallet = row.get("dev_wallet_address") or extract_dev_wallet(raw_json)
-        row["dev_wallet_address"] = dev_wallet
-        dev_transactions = await fetch_transactions(client, dev_wallet) if dev_wallet else []
+    owns_client = helius_client is None
+    client = helius_client or HeliusClient()
 
-        estimated_initial = estimate_initial_dev_balance(
-            dev_wallet=dev_wallet,
-            token_address=row["token_address"],
-            creator_balance=safe_float(row.get("creator_balance")),
-            dev_transactions=dev_transactions,
-        ) if dev_wallet else 0
-        threshold_amount = estimated_initial * (MIN_RECEIVED_SUPPLY_PCT / 100) if estimated_initial > 0 else 0
-        direct_edges = collect_transfer_edges(dev_wallet, row["token_address"], dev_transactions, degree=1) if dev_wallet else []
-        direct_wallets = top_recipients(
-            aggregate_inbound_amount(direct_edges),
-            threshold_amount,
-            MAX_DIRECT_RECIPIENTS,
-        )
-        first_degree_transactions = await fetch_wallet_transactions(client, direct_wallets)
+    try:
+        for row in rows:
+            raw_json = normalize_json(row.get("raw_json"))
+            dev_wallet = row.get("dev_wallet_address") or extract_dev_wallet(raw_json)
+            row["dev_wallet_address"] = dev_wallet
+            dev_transactions = await fetch_transactions(client, dev_wallet) if dev_wallet else []
 
-        second_degree_amounts: dict[str, float] = defaultdict(float)
-        for wallet, transactions in first_degree_transactions.items():
-            for edge in collect_transfer_edges(wallet, row["token_address"], transactions, degree=2):
-                if edge["edge_type"] == "TRANSFER":
-                    second_degree_amounts[edge["to_wallet"]] += safe_float(edge["amount"])
+            estimated_initial = estimate_initial_dev_balance(
+                dev_wallet=dev_wallet,
+                token_address=row["token_address"],
+                creator_balance=safe_float(row.get("creator_balance")),
+                dev_transactions=dev_transactions,
+            ) if dev_wallet else 0
+            threshold_amount = estimated_initial * (MIN_RECEIVED_SUPPLY_PCT / 100) if estimated_initial > 0 else 0
+            direct_edges = collect_transfer_edges(dev_wallet, row["token_address"], dev_transactions, degree=1) if dev_wallet else []
+            direct_wallets = top_recipients(
+                aggregate_inbound_amount(direct_edges),
+                threshold_amount,
+                MAX_DIRECT_RECIPIENTS,
+            )
+            first_degree_transactions = await fetch_wallet_transactions(client, direct_wallets)
 
-        second_degree_wallets = top_recipients(
-            dict(second_degree_amounts),
-            threshold_amount,
-            MAX_SECOND_DEGREE_RECIPIENTS,
-        )
-        second_degree_transactions = await fetch_wallet_transactions(client, second_degree_wallets)
-        wallet_transactions = {**first_degree_transactions, **second_degree_transactions}
+            second_degree_amounts: dict[str, float] = defaultdict(float)
+            for wallet, transactions in first_degree_transactions.items():
+                for edge in collect_transfer_edges(wallet, row["token_address"], transactions, degree=2):
+                    if edge["edge_type"] == "TRANSFER":
+                        second_degree_amounts[edge["to_wallet"]] += safe_float(edge["amount"])
 
-        result = analyze_dev_wallet_flow(
-            dev_wallet=dev_wallet,
-            token_address=row["token_address"],
-            creator_balance=safe_float(row.get("creator_balance")),
-            dev_transactions=dev_transactions,
-            wallet_transactions=wallet_transactions,
-        )
+            second_degree_wallets = top_recipients(
+                dict(second_degree_amounts),
+                threshold_amount,
+                MAX_SECOND_DEGREE_RECIPIENTS,
+            )
+            second_degree_transactions = await fetch_wallet_transactions(client, second_degree_wallets)
+            wallet_transactions = {**first_degree_transactions, **second_degree_transactions}
 
-        saved = await save_dev_wallet_flow_result(pool, row, result)
-        saved["symbol"] = row.get("symbol")
-        saved["token_address"] = row.get("token_address")
-        results.append(saved)
+            result = analyze_dev_wallet_flow(
+                dev_wallet=dev_wallet,
+                token_address=row["token_address"],
+                creator_balance=safe_float(row.get("creator_balance")),
+                dev_transactions=dev_transactions,
+                wallet_transactions=wallet_transactions,
+            )
+
+            saved = await save_dev_wallet_flow_result(pool, row, result)
+            saved["symbol"] = row.get("symbol")
+            saved["token_address"] = row.get("token_address")
+            results.append(saved)
+    finally:
+        if owns_client:
+            await client.aclose()
 
     return results

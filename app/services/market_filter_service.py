@@ -475,7 +475,10 @@ def classify_market_filter_status(candidate: dict[str, Any]) -> dict[str, Any]:
         "market_filter_pass": True,
         "market_filter_reason": "Passed early market filter",
     }
-async def get_early_dex_candidates(pool: asyncpg.Pool) -> list[dict[str, Any]]:
+async def get_early_dex_candidates(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+) -> list[dict[str, Any]]:
     sql = """
     SELECT
         r.run_id,
@@ -506,7 +509,7 @@ async def get_early_dex_candidates(pool: asyncpg.Pool) -> list[dict[str, Any]]:
 
         latest_raw.price_change
 
-    FROM latest_token_data_readiness r
+    FROM token_data_readiness r
     JOIN token_pairs p
         ON p.id = r.pair_id
 
@@ -529,11 +532,19 @@ async def get_early_dex_candidates(pool: asyncpg.Pool) -> list[dict[str, Any]]:
     ) latest_raw ON TRUE
 
     WHERE r.data_readiness_status = ANY($1::text[])
+      AND r.run_id = COALESCE(
+          $2,
+          (
+              SELECT MAX(id)
+              FROM ingestion_runs
+              WHERE source = 'dexscreener_latest_profiles'
+          )
+      )
     ORDER BY p.pair_created_at DESC NULLS LAST;
     """
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(sql, list(ALLOWED_READINESS_STATUSES))
+        rows = await conn.fetch(sql, list(ALLOWED_READINESS_STATUSES), run_id)
 
     candidates = []
 

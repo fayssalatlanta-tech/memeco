@@ -288,7 +288,10 @@ async def fetch_rugcheck_report(token_address: str) -> dict[str, Any]:
         return response.json()
 
 
-async def get_market_pass_candidates(pool: asyncpg.Pool) -> list[dict[str, Any]]:
+async def get_market_pass_candidates(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+) -> list[dict[str, Any]]:
     sql = """
     SELECT
         m.run_id,
@@ -304,15 +307,12 @@ async def get_market_pass_candidates(pool: asyncpg.Pool) -> list[dict[str, Any]]
     JOIN tokens t
         ON t.id = m.token_id
     WHERE m.market_filter_status = ANY($1::text[])
-      AND m.run_id = (
-          SELECT MAX(id)
-          FROM ingestion_runs
-      )
+      AND m.run_id = COALESCE($2, (SELECT MAX(id) FROM ingestion_runs))
     ORDER BY m.created_at DESC;
     """
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(sql, list(ALLOWED_MARKET_STATUSES))
+        rows = await conn.fetch(sql, list(ALLOWED_MARKET_STATUSES), run_id)
 
     return [dict(row) for row in rows]
 
@@ -407,8 +407,11 @@ async def save_contract_risk_result(
     return dict(row)
 
 
-async def run_contract_risk_service(pool: asyncpg.Pool) -> list[dict[str, Any]]:
-    candidates = await get_market_pass_candidates(pool)
+async def run_contract_risk_service(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+) -> list[dict[str, Any]]:
+    candidates = await get_market_pass_candidates(pool, run_id=run_id)
 
     results = []
 

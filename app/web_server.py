@@ -1,35 +1,26 @@
-import asyncio
 import hmac
 import json
 import os
-import threading
-import traceback
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import asyncio
 import asyncpg
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from app.db import create_pool
-from app.ingest_dexscreener import ingest_manual_token
-from app.ingest_dexscreener import main as run_ingestion
-from app.services.cluster_analysis_service import run_cluster_analysis_service
-from app.services.contract_risk_service import run_contract_risk_service
-from app.services.dev_wallet_audit_service import run_dev_wallet_audit_service
-from app.services.dev_wallet_flow_service import run_dev_wallet_flow_service
-from app.services.liquidity_filter_service import run_liquidity_filter_service
-from app.services.market_filter_service import (
-    get_early_dex_candidates,
-    save_market_filter_results,
+from app.dexscreener import DexScreenerClient
+from app.helius import HeliusClient
+from app.jobs.scan_state import get_scan_state
+from app.jobs.workers import (
+    is_valid_solana_address,
+    start_manual_token_job,
+    start_scan_job,
+    whale_signal_token_worker,
 )
-from app.services.wallet_analysis_service import run_wallet_analysis_service
-from app.services.wallet_intelligence_service import run_wallet_intelligence_service
-from app.services.wallet_manipulation_service import run_wallet_manipulation_service
-from app.services.watchlist_decision_service import run_watchlist_decision_service
 from app.services.whale_consistency_auditor_service import run_whale_consistency_audit
 from app.services.whale_price_refresh_service import refresh_whale_trade_prices
 from app.services.whale_signal_service import save_live_whale_signal
@@ -38,17 +29,6 @@ from app.services.whale_webhook_service import sync_whale_webhook
 
 APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
-SCAN_LOCK = threading.Lock()
-SCAN_STATE: dict[str, Any] = {
-    "running": False,
-    "status": "idle",
-    "stage": "idle",
-    "message": "No scan has been started",
-    "started_at": None,
-    "finished_at": None,
-    "error": None,
-    "steps": [],
-}
 
 NOISE_TOKEN_ADDRESSES = {
     "So11111111111111111111111111111111111111112",
@@ -59,324 +39,6 @@ NOISE_TOKEN_ADDRESSES = {
 
 def json_default(value):
     return str(value)
-
-
-def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def get_scan_state() -> dict:
-    with SCAN_LOCK:
-        return dict(SCAN_STATE)
-
-
-def update_scan_state(**updates) -> None:
-    with SCAN_LOCK:
-        SCAN_STATE.update(updates)
-
-
-def append_scan_step(name: str, status: str, message: str | None = None) -> None:
-    with SCAN_LOCK:
-        steps = list(SCAN_STATE.get("steps") or [])
-        steps.append(
-            {
-                "name": name,
-                "status": status,
-                "message": message,
-                "at": utc_now_iso(),
-            }
-        )
-        SCAN_STATE["steps"] = steps[-20:]
-
-
-async def run_analysis_pipeline_with_status() -> None:
-    pool = await create_pool()
-
-    try:
-        update_scan_state(stage="market_filter", message="Running Market Filter")
-        append_scan_step("Market Filter", "running")
-        market_candidates = await get_early_dex_candidates(pool)
-        market_results = await save_market_filter_results(pool, market_candidates)
-        append_scan_step("Market Filter", "done", f"Saved {len(market_results)} results")
-
-        update_scan_state(stage="contract_risk", message="Running Contract Risk")
-        append_scan_step("Contract Risk", "running")
-        contract_results = await run_contract_risk_service(pool)
-        append_scan_step("Contract Risk", "done", f"Saved {len(contract_results)} results")
-
-        update_scan_state(stage="liquidity_filter", message="Running Liquidity Filter")
-        append_scan_step("Liquidity Filter", "running")
-        liquidity_results = await run_liquidity_filter_service(pool)
-        append_scan_step("Liquidity Filter", "done", f"Saved {len(liquidity_results)} results")
-
-        update_scan_state(stage="wallet_analysis", message="Running Wallet Analysis")
-        append_scan_step("Wallet Analysis", "running")
-        wallet_results = await run_wallet_analysis_service(pool)
-        append_scan_step("Wallet Analysis", "done", f"Saved {len(wallet_results)} results")
-
-        update_scan_state(stage="cluster_analysis", message="Running Cluster Analysis")
-        append_scan_step("Cluster Analysis", "running")
-        cluster_results = await run_cluster_analysis_service(pool)
-        append_scan_step("Cluster Analysis", "done", f"Saved {len(cluster_results)} results")
-
-        update_scan_state(stage="wallet_intelligence", message="Running Wallet Intelligence")
-        append_scan_step("Wallet Intelligence", "running")
-        intelligence_results = await run_wallet_intelligence_service(pool)
-        append_scan_step("Wallet Intelligence", "done", f"Saved {len(intelligence_results)} results")
-
-        update_scan_state(stage="wallet_manipulation", message="Running Wallet Manipulation")
-        append_scan_step("Wallet Manipulation", "running")
-        manipulation_results = await run_wallet_manipulation_service(pool)
-        append_scan_step("Wallet Manipulation", "done", f"Saved {len(manipulation_results)} results")
-
-        update_scan_state(stage="dev_wallet_audit", message="Running Dev Wallet Audit")
-        append_scan_step("Dev Wallet Audit", "running")
-        dev_audit_results = await run_dev_wallet_audit_service(pool)
-        append_scan_step("Dev Wallet Audit", "done", f"Saved {len(dev_audit_results)} results")
-
-        update_scan_state(stage="dev_wallet_flow", message="Running Dev Wallet Flow")
-        append_scan_step("Dev Wallet Flow", "running")
-        dev_flow_results = await run_dev_wallet_flow_service(pool)
-        append_scan_step("Dev Wallet Flow", "done", f"Saved {len(dev_flow_results)} results")
-
-        update_scan_state(stage="watchlist_decision", message="Running Watchlist Decision")
-        append_scan_step("Watchlist Decision", "running")
-        watchlist_results = await run_watchlist_decision_service(pool)
-        append_scan_step("Watchlist Decision", "done", f"Saved {len(watchlist_results)} results")
-    finally:
-        await pool.close()
-
-
-def scan_worker() -> None:
-    update_scan_state(
-        running=True,
-        status="running",
-        stage="ingestion",
-        message="Ingesting DexScreener data",
-        started_at=utc_now_iso(),
-        finished_at=None,
-        error=None,
-        steps=[],
-    )
-
-    try:
-        append_scan_step("DexScreener Ingestion", "running")
-        asyncio.run(run_ingestion())
-        append_scan_step("DexScreener Ingestion", "done")
-        update_scan_state(message="Running analysis pipeline")
-        asyncio.run(run_analysis_pipeline_with_status())
-        update_scan_state(
-            running=False,
-            status="finished",
-            stage="finished",
-            message="Scan finished successfully",
-            finished_at=utc_now_iso(),
-            error=None,
-        )
-    except Exception as exc:
-        update_scan_state(
-            running=False,
-            status="failed",
-            stage="failed",
-            message="Scan failed",
-            finished_at=utc_now_iso(),
-            error=f"{exc}\n{traceback.format_exc()}",
-        )
-        append_scan_step("Scan", "failed", str(exc))
-
-
-def manual_token_worker(token_address: str) -> None:
-    update_scan_state(
-        running=True,
-        status="running",
-        stage="manual_ingestion",
-        message=f"Analyzing token {token_address}",
-        started_at=utc_now_iso(),
-        finished_at=None,
-        error=None,
-        steps=[],
-    )
-
-    try:
-        append_scan_step("Manual Token Ingestion", "running", token_address)
-        saved = asyncio.run(ingest_manual_token(token_address))
-        run_id = saved["run_id"]
-        symbol = saved["token"].get("symbol") or token_address
-        append_scan_step("Manual Token Ingestion", "done", f"Saved {symbol} in run #{run_id}")
-
-        update_scan_state(message="Running analysis pipeline")
-        asyncio.run(run_analysis_pipeline_with_status())
-        update_scan_state(
-            running=False,
-            status="finished",
-            stage="finished",
-            message=f"Manual token analysis finished for {symbol}",
-            finished_at=utc_now_iso(),
-            error=None,
-        )
-    except Exception as exc:
-        update_scan_state(
-            running=False,
-            status="failed",
-            stage="failed",
-            message="Manual token analysis failed",
-            finished_at=utc_now_iso(),
-            error=f"{exc}\n{traceback.format_exc()}",
-        )
-        append_scan_step("Manual Token Analysis", "failed", str(exc))
-
-
-async def latest_decision_for_token(pool, token_address: str) -> dict | None:
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT
-                wd.run_id,
-                wd.final_watchlist_status
-            FROM watchlist_decisions wd
-            JOIN tokens t
-                ON t.id = wd.token_id
-            WHERE t.address = $1
-            ORDER BY wd.run_id DESC, wd.created_at DESC, wd.id DESC
-            LIMIT 1;
-            """,
-            token_address,
-        )
-    return dict(row) if row else None
-
-
-async def mark_signal_analysis_started(job_id: int) -> None:
-    pool = await create_pool()
-    try:
-        async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                UPDATE whale_signal_analysis_jobs
-                SET status = 'RUNNING',
-                    started_at = NOW(),
-                    error_message = NULL
-                WHERE id = $1;
-                """,
-                job_id,
-            )
-    finally:
-        await pool.close()
-
-
-async def mark_signal_analysis_finished(job_id: int, token_address: str) -> None:
-    pool = await create_pool()
-    try:
-        decision = await latest_decision_for_token(pool, token_address)
-        async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                UPDATE whale_signal_analysis_jobs
-                SET status = 'FINISHED',
-                    finished_at = NOW(),
-                    run_id = $2,
-                    final_watchlist_status = $3
-                WHERE id = $1;
-                """,
-                job_id,
-                (decision or {}).get("run_id"),
-                (decision or {}).get("final_watchlist_status"),
-            )
-    finally:
-        await pool.close()
-
-
-async def mark_signal_analysis_failed(job_id: int, error_message: str) -> None:
-    pool = await create_pool()
-    try:
-        async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                UPDATE whale_signal_analysis_jobs
-                SET status = 'FAILED',
-                    finished_at = NOW(),
-                    error_message = $2
-                WHERE id = $1;
-                """,
-                job_id,
-                error_message[:2000],
-            )
-    finally:
-        await pool.close()
-
-
-def whale_signal_token_worker(token_address: str, job_id: int) -> None:
-    try:
-        asyncio.run(mark_signal_analysis_started(job_id))
-        saved = asyncio.run(ingest_manual_token(token_address))
-        asyncio.run(run_analysis_pipeline_with_status())
-        asyncio.run(mark_signal_analysis_finished(job_id, token_address))
-        append_scan_step(
-            "Whale Signal Auto Analysis",
-            "done",
-            f"Analyzed {token_address} from whale signal in run #{saved.get('run_id')}",
-        )
-    except Exception as exc:
-        asyncio.run(mark_signal_analysis_failed(job_id, f"{exc}\n{traceback.format_exc()}"))
-        append_scan_step("Whale Signal Auto Analysis", "failed", str(exc))
-
-
-def start_scan_job() -> tuple[bool, dict]:
-    with SCAN_LOCK:
-        if SCAN_STATE["running"]:
-            return False, dict(SCAN_STATE)
-
-        SCAN_STATE.update(
-            running=True,
-            status="queued",
-            stage="queued",
-            message="Scan queued",
-            started_at=utc_now_iso(),
-            finished_at=None,
-            error=None,
-            steps=[],
-        )
-
-    thread = threading.Thread(target=scan_worker, daemon=True)
-    thread.start()
-
-    return True, get_scan_state()
-
-
-def is_valid_solana_address(value: str) -> bool:
-    if not value or not 32 <= len(value) <= 64:
-        return False
-
-    alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-    return all(char in alphabet for char in value)
-
-
-def start_manual_token_job(token_address: str) -> tuple[bool, dict]:
-    token_address = token_address.strip()
-
-    if not is_valid_solana_address(token_address):
-        state = get_scan_state()
-        state["error"] = "Invalid Solana token address"
-        return False, state
-
-    with SCAN_LOCK:
-        if SCAN_STATE["running"]:
-            return False, dict(SCAN_STATE)
-
-        SCAN_STATE.update(
-            running=True,
-            status="queued",
-            stage="queued",
-            message=f"Manual token analysis queued for {token_address}",
-            started_at=utc_now_iso(),
-            finished_at=None,
-            error=None,
-            steps=[],
-        )
-
-    thread = threading.Thread(target=manual_token_worker, args=(token_address,), daemon=True)
-    thread.start()
-
-    return True, get_scan_state()
 
 
 async def fetch_summary(pool: asyncpg.Pool) -> dict:
@@ -1533,23 +1195,25 @@ async def store_whale_signal(pool: asyncpg.Pool, payload: dict) -> dict:
         pass  # pool lifetime managed by FastAPI lifespan
 
 
-async def store_whale_signal_payload(pool: asyncpg.Pool, payload) -> dict:
+async def store_whale_signal_payload(app: FastAPI, payload) -> dict:
+    pool = app.state.pool
     if isinstance(payload, list):
         saved = []
         for item in payload:
             if isinstance(item, dict):
                 signal = await store_whale_signal(pool, item)
-                signal["auto_analysis"] = await maybe_queue_whale_signal_analysis(pool, signal)
+                signal["auto_analysis"] = await maybe_queue_whale_signal_analysis(app, signal)
                 saved.append(signal)
         return {"saved_count": len(saved), "signals": saved}
     if isinstance(payload, dict):
         signal = await store_whale_signal(pool, payload)
-        signal["auto_analysis"] = await maybe_queue_whale_signal_analysis(pool, signal)
+        signal["auto_analysis"] = await maybe_queue_whale_signal_analysis(app, signal)
         return signal
     raise ValueError("Webhook payload must be a JSON object or array")
 
 
-async def maybe_queue_whale_signal_analysis(pool: asyncpg.Pool, signal: dict) -> dict:
+async def maybe_queue_whale_signal_analysis(app: FastAPI, signal: dict) -> dict:
+    pool = app.state.pool
     token_address = str(signal.get("token_address") or "").strip()
     wallet_address = str(signal.get("wallet_address") or "").strip()
     signal_type = str(signal.get("signal_type") or "").upper()
@@ -1632,12 +1296,15 @@ async def maybe_queue_whale_signal_analysis(pool: asyncpg.Pool, signal: dict) ->
             if row["status"] not in {"QUEUED", "FAILED"}:
                 return {"queued": False, "reason": f"Existing job is {row['status']}", "job_id": row["id"]}
 
-            thread = threading.Thread(
-                target=whale_signal_token_worker,
-                args=(token_address, row["id"]),
-                daemon=True,
+            asyncio.create_task(
+                whale_signal_token_worker(
+                    app.state.pool,
+                    app.state.dexscreener_client,
+                    app.state.helius_client,
+                    token_address,
+                    row["id"],
+                )
             )
-            thread.start()
 
             return {"queued": True, "job_id": row["id"], "reason": "Queued from whale live signal"}
     finally:
@@ -1660,16 +1327,18 @@ async def run_whale_action(pool: asyncpg.Pool, action: str) -> dict:
 
 
 def parse_limit_str(raw: str | None, default: int = 50, maximum: int = 200) -> int:
-    """Mirror of the original parse_limit but takes a single string value.
+    """Parse a query-string limit value, clamped to ``[1, maximum]``.
 
-    Falls back to default on missing or non-integer input (does not 422).
+    Falls back to ``default`` when the parameter is missing or empty.
+    Raises :class:`ValueError` for non-integer input — handlers translate
+    this into a 400 so frontend bugs surface instead of being swallowed.
     """
     if raw is None or raw == "":
         return default
     try:
         value = int(raw)
-    except ValueError:
-        value = default
+    except ValueError as exc:
+        raise ValueError(f"limit must be an integer, got {raw!r}") from exc
     return max(1, min(value, maximum))
 
 
@@ -1696,12 +1365,28 @@ class QuantJSONResponse(JSONResponse):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create one asyncpg pool for the entire application lifetime."""
+    """Create one asyncpg pool and one HTTP client of each kind for the
+    entire application lifetime.
+
+    Singletons are stored on ``app.state`` so request handlers and async
+    workers can reuse them without each one creating short-lived sockets
+    and TLS handshakes. The shared rate limiters inside each client only
+    serialize calls per-instance; making them process-wide closes the gap
+    where two concurrent services could collectively exceed upstream
+    limits.
+    """
     pool = await create_pool()
+    dexscreener_client = DexScreenerClient()
+    helius_client = HeliusClient()
+
     app.state.pool = pool
+    app.state.dexscreener_client = dexscreener_client
+    app.state.helius_client = helius_client
     try:
         yield
     finally:
+        await dexscreener_client.aclose()
+        await helius_client.aclose()
         await pool.close()
 
 
@@ -1803,16 +1488,33 @@ async def api_summary(request: Request) -> dict:
     return await fetch_summary(request.app.state.pool)
 
 
+def _parse_limit_or_400(
+    raw: str | None,
+    default: int,
+    maximum: int,
+) -> tuple[int | None, Response | None]:
+    """Helper that returns either ``(limit, None)`` or ``(None, 400 response)``."""
+    try:
+        return parse_limit_str(raw, default=default, maximum=maximum), None
+    except ValueError as exc:
+        return None, QuantJSONResponse({"error": str(exc)}, status_code=400)
+
+
 @app.get("/api/watchlist")
 async def api_watchlist(
     request: Request,
     status: str | None = None,
     limit: str | None = None,
-) -> list[dict]:
-    return await fetch_watchlist(
-        request.app.state.pool,
-        status=status,
-        limit=parse_limit_str(limit, default=50, maximum=200),
+) -> Response:
+    parsed, error = _parse_limit_or_400(limit, default=50, maximum=200)
+    if error is not None:
+        return error
+    return QuantJSONResponse(
+        await fetch_watchlist(
+            request.app.state.pool,
+            status=status,
+            limit=parsed,
+        )
     )
 
 
@@ -1839,10 +1541,15 @@ async def api_token_detail(
 
 
 @app.get("/api/runs")
-async def api_runs(request: Request, limit: str | None = None) -> list[dict]:
-    return await fetch_runs(
-        request.app.state.pool,
-        limit=parse_limit_str(limit, default=10, maximum=100),
+async def api_runs(request: Request, limit: str | None = None) -> Response:
+    parsed, error = _parse_limit_or_400(limit, default=10, maximum=100)
+    if error is not None:
+        return error
+    return QuantJSONResponse(
+        await fetch_runs(
+            request.app.state.pool,
+            limit=parsed,
+        )
     )
 
 
@@ -1851,11 +1558,16 @@ async def api_whale_radar(
     request: Request,
     limit: str | None = None,
     wallet: str | None = None,
-) -> dict:
-    return await fetch_whale_radar(
-        request.app.state.pool,
-        limit=parse_limit_str(limit, default=50, maximum=300),
-        wallet_address=wallet,
+) -> Response:
+    parsed, error = _parse_limit_or_400(limit, default=50, maximum=300)
+    if error is not None:
+        return error
+    return QuantJSONResponse(
+        await fetch_whale_radar(
+            request.app.state.pool,
+            limit=parsed,
+            wallet_address=wallet,
+        )
     )
 
 
@@ -1881,8 +1593,8 @@ async def api_scan_status() -> dict:
 
 
 @app.post("/api/scan")
-async def api_scan_post() -> Response:
-    started, state = start_scan_job()
+async def api_scan_post(request: Request) -> Response:
+    started, state = start_scan_job(request.app)
     status_code = 202 if started else 409
     return QuantJSONResponse(state, status_code=status_code)
 
@@ -1899,7 +1611,7 @@ async def api_analyze_token(request: Request) -> Response:
         return QuantJSONResponse({"error": "Invalid JSON body"}, status_code=400)
 
     token_address = str(payload.get("token_address") or "").strip()
-    started, state = start_manual_token_job(token_address)
+    started, state = start_manual_token_job(request.app, token_address)
     if not started and state.get("error") == "Invalid Solana token address":
         return QuantJSONResponse(state, status_code=400)
 
@@ -1947,7 +1659,7 @@ async def api_whale_signal(request: Request) -> Response:
         return QuantJSONResponse({"error": "Invalid JSON body"}, status_code=400)
 
     try:
-        saved = await store_whale_signal_payload(request.app.state.pool, payload)
+        saved = await store_whale_signal_payload(request.app, payload)
     except Exception as exc:
         return QuantJSONResponse({"error": str(exc)}, status_code=400)
 

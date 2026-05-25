@@ -1,9 +1,0 @@
-# Legacy requirements file — kept for compatibility.
-# The canonical, pinned dependency list lives in pyproject.toml.
-# Prefer: pip install -e .
-asyncpg==0.31.0
-fastapi==0.136.3
-httpx==0.28.1
-python-dotenv==1.2.2
-tenacity==9.1.4
-uvicorn[standard]==0.48.0

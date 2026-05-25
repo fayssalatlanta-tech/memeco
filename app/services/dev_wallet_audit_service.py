@@ -207,7 +207,10 @@ def analyze_dev_wallet_transactions(
     }
 
 
-async def get_dev_audit_inputs(pool: asyncpg.Pool) -> list[dict[str, Any]]:
+async def get_dev_audit_inputs(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+) -> list[dict[str, Any]]:
     sql = """
     SELECT
         c.run_id,
@@ -221,15 +224,12 @@ async def get_dev_audit_inputs(pool: asyncpg.Pool) -> list[dict[str, Any]]:
     FROM contract_risk_results c
     JOIN tokens t
         ON t.id = c.token_id
-    WHERE c.run_id = (
-        SELECT MAX(id)
-        FROM ingestion_runs
-    )
+    WHERE c.run_id = COALESCE($1, (SELECT MAX(id) FROM ingestion_runs))
     ORDER BY c.created_at DESC;
     """
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(sql)
+        rows = await conn.fetch(sql, run_id)
 
     return [dict(row) for row in rows]
 
@@ -315,35 +315,45 @@ async def save_dev_wallet_audit_result(
     return dict(saved)
 
 
-async def run_dev_wallet_audit_service(pool: asyncpg.Pool) -> list[dict[str, Any]]:
-    rows = await get_dev_audit_inputs(pool)
-    client = HeliusClient()
+async def run_dev_wallet_audit_service(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+    helius_client: HeliusClient | None = None,
+) -> list[dict[str, Any]]:
+    rows = await get_dev_audit_inputs(pool, run_id=run_id)
     results = []
 
-    for row in rows:
-        raw_json = normalize_json(row.get("raw_json"))
-        dev_wallet = row.get("dev_wallet_address") or extract_dev_wallet(raw_json)
-        row["dev_wallet_address"] = dev_wallet
+    owns_client = helius_client is None
+    client = helius_client or HeliusClient()
 
-        try:
-            transactions = (
-                await client.get_address_transactions(dev_wallet, limit=100)
-                if dev_wallet
-                else []
+    try:
+        for row in rows:
+            raw_json = normalize_json(row.get("raw_json"))
+            dev_wallet = row.get("dev_wallet_address") or extract_dev_wallet(raw_json)
+            row["dev_wallet_address"] = dev_wallet
+
+            try:
+                transactions = (
+                    await client.get_address_transactions(dev_wallet, limit=100)
+                    if dev_wallet
+                    else []
+                )
+            except (httpx.HTTPError, RuntimeError, json.JSONDecodeError):
+                transactions = []
+
+            result = analyze_dev_wallet_transactions(
+                dev_wallet=dev_wallet,
+                token_address=row["token_address"],
+                creator_balance=safe_float(row.get("creator_balance")),
+                transactions=transactions,
             )
-        except (httpx.HTTPError, RuntimeError, json.JSONDecodeError):
-            transactions = []
 
-        result = analyze_dev_wallet_transactions(
-            dev_wallet=dev_wallet,
-            token_address=row["token_address"],
-            creator_balance=safe_float(row.get("creator_balance")),
-            transactions=transactions,
-        )
-
-        saved = await save_dev_wallet_audit_result(pool, row, result)
-        saved["symbol"] = row.get("symbol")
-        saved["token_address"] = row.get("token_address")
-        results.append(saved)
+            saved = await save_dev_wallet_audit_result(pool, row, result)
+            saved["symbol"] = row.get("symbol")
+            saved["token_address"] = row.get("token_address")
+            results.append(saved)
+    finally:
+        if owns_client:
+            await client.aclose()
 
     return results

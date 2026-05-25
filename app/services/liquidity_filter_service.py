@@ -345,7 +345,10 @@ def classify_liquidity(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def get_liquidity_inputs(pool: asyncpg.Pool) -> list[dict[str, Any]]:
+async def get_liquidity_inputs(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+) -> list[dict[str, Any]]:
     sql = """
     SELECT
         m.run_id,
@@ -377,15 +380,12 @@ async def get_liquidity_inputs(pool: asyncpg.Pool) -> list[dict[str, Any]]:
        AND c.token_id = m.token_id
 
     WHERE m.market_filter_status IN ('MARKET_PASS', 'MARKET_PASS_HIGH_RISK')
-      AND m.run_id = (
-          SELECT MAX(id)
-          FROM ingestion_runs
-      )
+      AND m.run_id = COALESCE($1, (SELECT MAX(id) FROM ingestion_runs))
     ORDER BY m.created_at DESC;
     """
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(sql)
+        rows = await conn.fetch(sql, run_id)
 
     return [dict(row) for row in rows]
 
@@ -479,8 +479,11 @@ async def save_liquidity_result(
     return dict(saved)
 
 
-async def run_liquidity_filter_service(pool: asyncpg.Pool) -> list[dict[str, Any]]:
-    rows = await get_liquidity_inputs(pool)
+async def run_liquidity_filter_service(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+) -> list[dict[str, Any]]:
+    rows = await get_liquidity_inputs(pool, run_id=run_id)
 
     results = []
 

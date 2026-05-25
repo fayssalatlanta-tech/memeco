@@ -412,6 +412,7 @@ def score_wallet(
 
 async def get_wallet_intelligence_inputs(
     pool: asyncpg.Pool,
+    run_id: int | None = None,
     holder_limit: int = EARLY_BUYER_LIMIT,
 ) -> list[dict[str, Any]]:
     sql = """
@@ -442,15 +443,12 @@ async def get_wallet_intelligence_inputs(
        AND fe.holder_address = th.owner_address
        AND fe.source = 'helius'
     WHERE th.rank <= $1
-      AND th.run_id = (
-          SELECT MAX(id)
-          FROM ingestion_runs
-      )
+      AND th.run_id = COALESCE($2, (SELECT MAX(id) FROM ingestion_runs))
     ORDER BY th.run_id DESC, th.token_id, th.rank;
     """
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(sql, holder_limit)
+        rows = await conn.fetch(sql, holder_limit, run_id)
 
     return [dict(row) for row in rows]
 
@@ -587,35 +585,45 @@ async def update_watchlist_intelligence_summary(pool: asyncpg.Pool) -> None:
         await conn.execute(sql)
 
 
-async def run_wallet_intelligence_service(pool: asyncpg.Pool) -> list[dict[str, Any]]:
-    rows = await get_wallet_intelligence_inputs(pool)
-    client = HeliusClient()
+async def run_wallet_intelligence_service(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+    helius_client: HeliusClient | None = None,
+) -> list[dict[str, Any]]:
+    rows = await get_wallet_intelligence_inputs(pool, run_id=run_id)
     results = []
 
-    for row in rows:
-        try:
-            transactions = await client.get_address_transactions(
-                row["wallet_address"],
-                limit=100,
+    owns_client = helius_client is None
+    client = helius_client or HeliusClient()
+
+    try:
+        for row in rows:
+            try:
+                transactions = await client.get_address_transactions(
+                    row["wallet_address"],
+                    limit=100,
+                )
+            except (httpx.HTTPError, RuntimeError, json.JSONDecodeError):
+                transactions = []
+
+            result = analyze_wallet_transactions(
+                wallet_address=row["wallet_address"],
+                token_address=row["token_address"],
+                pair_created_at=row.get("pair_created_at"),
+                rank=row.get("rank"),
+                holder_percent=safe_float(row.get("holder_percent")),
+                funding_source=row.get("funding_source"),
+                funding_source_holder_count=int(row.get("funding_source_holder_count") or 0),
+                transactions=transactions,
             )
-        except (httpx.HTTPError, RuntimeError, json.JSONDecodeError):
-            transactions = []
 
-        result = analyze_wallet_transactions(
-            wallet_address=row["wallet_address"],
-            token_address=row["token_address"],
-            pair_created_at=row.get("pair_created_at"),
-            rank=row.get("rank"),
-            holder_percent=safe_float(row.get("holder_percent")),
-            funding_source=row.get("funding_source"),
-            funding_source_holder_count=int(row.get("funding_source_holder_count") or 0),
-            transactions=transactions,
-        )
-
-        saved = await save_wallet_intelligence_result(pool, row, result)
-        saved["symbol"] = row.get("symbol")
-        saved["token_address"] = row.get("token_address")
-        results.append(saved)
+            saved = await save_wallet_intelligence_result(pool, row, result)
+            saved["symbol"] = row.get("symbol")
+            saved["token_address"] = row.get("token_address")
+            results.append(saved)
+    finally:
+        if owns_client:
+            await client.aclose()
 
     await update_watchlist_intelligence_summary(pool)
 

@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -7,6 +8,12 @@ import asyncpg
 import httpx
 
 from app.helius import HeliusClient
+
+# Helius parallelism. The HeliusClient already enforces a process-wide
+# minimum interval between calls via its rate-lock, so requests still go
+# out in a controlled stream — the semaphore just bounds in-flight tasks
+# and parallel TLS work without exceeding the rate limit.
+HELIUS_PARALLELISM = 10
 
 
 def unix_to_datetime(value) -> datetime | None:
@@ -147,7 +154,11 @@ def classify_clusters(edges: list[dict[str, Any]], holder_count: int) -> dict[st
     }
 
 
-async def get_cluster_inputs(pool: asyncpg.Pool, holder_limit: int = 10) -> list[dict[str, Any]]:
+async def get_cluster_inputs(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+    holder_limit: int = 10,
+) -> list[dict[str, Any]]:
     sql = """
     SELECT
         wa.run_id,
@@ -173,11 +184,8 @@ async def get_cluster_inputs(pool: asyncpg.Pool, holder_limit: int = 10) -> list
     LEFT JOIN token_holders th
         ON th.run_id = wa.run_id
        AND th.token_id = wa.token_id
-       AND th.rank <= $1
-    WHERE wa.run_id = (
-        SELECT MAX(id)
-        FROM ingestion_runs
-    )
+       AND th.rank <= $2
+    WHERE wa.run_id = COALESCE($1, (SELECT MAX(id) FROM ingestion_runs))
     GROUP BY
         wa.run_id,
         wa.token_id,
@@ -189,9 +197,96 @@ async def get_cluster_inputs(pool: asyncpg.Pool, holder_limit: int = 10) -> list
     """
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(sql, holder_limit)
+        rows = await conn.fetch(sql, run_id, holder_limit)
 
     return [dict(row) for row in rows]
+
+
+# ---- Persistence ---------------------------------------------------------
+#
+# Funding-edge rows and the cluster result row used to be saved with one
+# `pool.acquire()` per call. For 10 holders that's 11 round-trips per token.
+# We now write them all in a single transaction per token: one acquire, one
+# `executemany` for the edges, one `fetchrow` for the result.
+
+_INSERT_FUNDING_EDGE_SQL = """
+INSERT INTO wallet_funding_edges (
+    run_id,
+    token_id,
+    holder_address,
+    funder_address,
+    signature,
+    amount_lamports,
+    timestamp,
+    source,
+    raw_json
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, 'helius', $8::jsonb)
+ON CONFLICT (run_id, token_id, holder_address, source)
+DO UPDATE SET
+    funder_address = EXCLUDED.funder_address,
+    signature = EXCLUDED.signature,
+    amount_lamports = EXCLUDED.amount_lamports,
+    timestamp = EXCLUDED.timestamp,
+    raw_json = EXCLUDED.raw_json,
+    created_at = NOW();
+"""
+
+_INSERT_CLUSTER_RESULT_SQL = """
+INSERT INTO cluster_analysis_results (
+    run_id,
+    token_id,
+    pair_id,
+    cluster_status,
+    cluster_pass,
+    cluster_reason,
+    holder_count,
+    funded_holder_count,
+    shared_funder_count,
+    largest_cluster_size,
+    largest_cluster_funder,
+    warnings,
+    details
+)
+VALUES (
+    $1, $2, $3,
+    $4, $5, $6,
+    $7, $8, $9,
+    $10, $11,
+    $12::jsonb, $13::jsonb
+)
+ON CONFLICT (run_id, token_id)
+DO UPDATE SET
+    pair_id = EXCLUDED.pair_id,
+    cluster_status = EXCLUDED.cluster_status,
+    cluster_pass = EXCLUDED.cluster_pass,
+    cluster_reason = EXCLUDED.cluster_reason,
+    holder_count = EXCLUDED.holder_count,
+    funded_holder_count = EXCLUDED.funded_holder_count,
+    shared_funder_count = EXCLUDED.shared_funder_count,
+    largest_cluster_size = EXCLUDED.largest_cluster_size,
+    largest_cluster_funder = EXCLUDED.largest_cluster_funder,
+    warnings = EXCLUDED.warnings,
+    details = EXCLUDED.details,
+    created_at = NOW()
+RETURNING *;
+"""
+
+
+def _funding_edge_params(
+    row: dict[str, Any],
+    edge: dict[str, Any],
+) -> tuple[Any, ...]:
+    return (
+        row["run_id"],
+        row["token_id"],
+        edge["holder_address"],
+        edge.get("funder_address"),
+        edge.get("signature"),
+        edge.get("amount_lamports"),
+        edge.get("timestamp"),
+        json.dumps(edge.get("raw_json") or {}, default=str),
+    )
 
 
 async def save_funding_edge(
@@ -199,41 +294,14 @@ async def save_funding_edge(
     row: dict[str, Any],
     edge: dict[str, Any],
 ) -> None:
-    sql = """
-    INSERT INTO wallet_funding_edges (
-        run_id,
-        token_id,
-        holder_address,
-        funder_address,
-        signature,
-        amount_lamports,
-        timestamp,
-        source,
-        raw_json
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, 'helius', $8::jsonb)
-    ON CONFLICT (run_id, token_id, holder_address, source)
-    DO UPDATE SET
-        funder_address = EXCLUDED.funder_address,
-        signature = EXCLUDED.signature,
-        amount_lamports = EXCLUDED.amount_lamports,
-        timestamp = EXCLUDED.timestamp,
-        raw_json = EXCLUDED.raw_json,
-        created_at = NOW();
-    """
+    """Insert a single funding edge.
 
+    Kept for back-compat with anything that imports it directly. The hot
+    path in ``run_cluster_analysis_service`` now uses
+    :func:`save_token_cluster_state` to batch all per-token writes.
+    """
     async with pool.acquire() as conn:
-        await conn.execute(
-            sql,
-            row["run_id"],
-            row["token_id"],
-            edge["holder_address"],
-            edge.get("funder_address"),
-            edge.get("signature"),
-            edge.get("amount_lamports"),
-            edge.get("timestamp"),
-            json.dumps(edge.get("raw_json") or {}, default=str),
-        )
+        await conn.execute(_INSERT_FUNDING_EDGE_SQL, *_funding_edge_params(row, edge))
 
 
 async def save_cluster_result(
@@ -241,46 +309,7 @@ async def save_cluster_result(
     row: dict[str, Any],
     result: dict[str, Any],
 ) -> dict[str, Any]:
-    sql = """
-    INSERT INTO cluster_analysis_results (
-        run_id,
-        token_id,
-        pair_id,
-        cluster_status,
-        cluster_pass,
-        cluster_reason,
-        holder_count,
-        funded_holder_count,
-        shared_funder_count,
-        largest_cluster_size,
-        largest_cluster_funder,
-        warnings,
-        details
-    )
-    VALUES (
-        $1, $2, $3,
-        $4, $5, $6,
-        $7, $8, $9,
-        $10, $11,
-        $12::jsonb, $13::jsonb
-    )
-    ON CONFLICT (run_id, token_id)
-    DO UPDATE SET
-        pair_id = EXCLUDED.pair_id,
-        cluster_status = EXCLUDED.cluster_status,
-        cluster_pass = EXCLUDED.cluster_pass,
-        cluster_reason = EXCLUDED.cluster_reason,
-        holder_count = EXCLUDED.holder_count,
-        funded_holder_count = EXCLUDED.funded_holder_count,
-        shared_funder_count = EXCLUDED.shared_funder_count,
-        largest_cluster_size = EXCLUDED.largest_cluster_size,
-        largest_cluster_funder = EXCLUDED.largest_cluster_funder,
-        warnings = EXCLUDED.warnings,
-        details = EXCLUDED.details,
-        created_at = NOW()
-    RETURNING *;
-    """
-
+    """Upsert the cluster result row for a single token. Back-compat entry."""
     details = {
         "symbol": row.get("symbol"),
         "token_address": row.get("token_address"),
@@ -289,7 +318,7 @@ async def save_cluster_result(
 
     async with pool.acquire() as conn:
         saved = await conn.fetchrow(
-            sql,
+            _INSERT_CLUSTER_RESULT_SQL,
             row["run_id"],
             row["token_id"],
             row["pair_id"],
@@ -308,77 +337,173 @@ async def save_cluster_result(
     return dict(saved)
 
 
-async def run_cluster_analysis_service(pool: asyncpg.Pool) -> list[dict[str, Any]]:
-    rows = await get_cluster_inputs(pool)
-    client = HeliusClient()
+async def save_token_cluster_state(
+    pool: asyncpg.Pool,
+    row: dict[str, Any],
+    edges: list[dict[str, Any]],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Write all per-token cluster persistence in a single transaction:
 
-    results = []
+      * upsert each funding edge via ``executemany``
+      * upsert the cluster result row
 
-    for row in rows:
-        holders = row.get("holders") or []
+    One ``pool.acquire()`` per token instead of one per holder + one for
+    the result. For 10 holders that's 11x fewer round-trips.
+    """
+    edge_params = [_funding_edge_params(row, edge) for edge in edges]
 
-        if isinstance(holders, str):
-            holders = json.loads(holders)
+    details = {
+        "symbol": row.get("symbol"),
+        "token_address": row.get("token_address"),
+        "source": "helius",
+    }
 
-        if not client.is_configured:
-            result = {
-                "cluster_status": "CLUSTER_UNKNOWN",
-                "cluster_pass": False,
-                "cluster_reason": "HELIUS_API_KEY is missing",
-                "holder_count": len(holders),
-                "funded_holder_count": 0,
-                "shared_funder_count": 0,
-                "largest_cluster_size": 0,
-                "largest_cluster_funder": None,
-                "warnings": ["HELIUS_NOT_CONFIGURED"],
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            if edge_params:
+                await conn.executemany(_INSERT_FUNDING_EDGE_SQL, edge_params)
+
+            saved = await conn.fetchrow(
+                _INSERT_CLUSTER_RESULT_SQL,
+                row["run_id"],
+                row["token_id"],
+                row["pair_id"],
+                result["cluster_status"],
+                result["cluster_pass"],
+                result["cluster_reason"],
+                result["holder_count"],
+                result["funded_holder_count"],
+                result["shared_funder_count"],
+                result["largest_cluster_size"],
+                result["largest_cluster_funder"],
+                json.dumps(result["warnings"]),
+                json.dumps(details),
+            )
+
+    return dict(saved)
+
+
+# ---- Helius fan-out ------------------------------------------------------
+
+
+async def _fetch_funding_edge_for_holder(
+    client: HeliusClient,
+    holder_address: str,
+    semaphore: asyncio.Semaphore,
+) -> dict[str, Any]:
+    """
+    Fetch one holder's recent transactions from Helius and reduce them to a
+    single ``funding edge`` shape. Always returns a dict, never raises:
+    transient errors are surfaced as a synthetic edge with a reason payload
+    so the per-token classifier still has a complete row set.
+
+    The semaphore caps concurrent in-flight tasks. The HeliusClient's own
+    rate limiter then serializes the actual outbound requests.
+    """
+    async with semaphore:
+        try:
+            transactions = await client.get_address_transactions(
+                holder_address,
+                limit=30,
+            )
+        except (httpx.HTTPError, RuntimeError, json.JSONDecodeError) as exc:
+            return {
+                "holder_address": holder_address,
+                "funder_address": None,
+                "signature": None,
+                "amount_lamports": None,
+                "timestamp": None,
+                "raw_json": {"error": str(exc)},
             }
-            saved = await save_cluster_result(pool, row, result)
-            results.append(saved)
-            continue
 
-        edges = []
+    edge = find_funding_transfer(holder_address, transactions)
+    if edge is not None:
+        return edge
 
-        for holder in holders:
-            holder_address = holder.get("owner_address")
+    return {
+        "holder_address": holder_address,
+        "funder_address": None,
+        "signature": None,
+        "amount_lamports": None,
+        "timestamp": None,
+        "raw_json": {"reason": "No inbound SOL transfer found"},
+    }
 
-            if not holder_address:
-                continue
 
-            try:
-                transactions = await client.get_address_transactions(
-                    holder_address,
-                    limit=30,
-                )
-                edge = find_funding_transfer(holder_address, transactions)
-            except (httpx.HTTPError, RuntimeError, json.JSONDecodeError) as exc:
-                edge = {
-                    "holder_address": holder_address,
-                    "funder_address": None,
-                    "signature": None,
-                    "amount_lamports": None,
-                    "timestamp": None,
-                    "raw_json": {"error": str(exc)},
-                }
+async def _process_token(
+    pool: asyncpg.Pool,
+    client: HeliusClient,
+    row: dict[str, Any],
+    semaphore: asyncio.Semaphore,
+) -> dict[str, Any]:
+    holders = row.get("holders") or []
+    if isinstance(holders, str):
+        holders = json.loads(holders)
 
-            if edge is None:
-                edge = {
-                    "holder_address": holder_address,
-                    "funder_address": None,
-                    "signature": None,
-                    "amount_lamports": None,
-                    "timestamp": None,
-                    "raw_json": {"reason": "No inbound SOL transfer found"},
-                }
-
-            await save_funding_edge(pool, row, edge)
-            edges.append(edge)
-
-        result = classify_clusters(edges, holder_count=len(holders))
-        saved = await save_cluster_result(pool, row, result)
-
+    if not client.is_configured:
+        result = {
+            "cluster_status": "CLUSTER_UNKNOWN",
+            "cluster_pass": False,
+            "cluster_reason": "HELIUS_API_KEY is missing",
+            "holder_count": len(holders),
+            "funded_holder_count": 0,
+            "shared_funder_count": 0,
+            "largest_cluster_size": 0,
+            "largest_cluster_funder": None,
+            "warnings": ["HELIUS_NOT_CONFIGURED"],
+        }
+        saved = await save_token_cluster_state(pool, row, edges=[], result=result)
         saved["symbol"] = row.get("symbol")
         saved["token_address"] = row.get("token_address")
+        return saved
 
-        results.append(saved)
+    holder_addresses = [
+        holder.get("owner_address")
+        for holder in holders
+        if holder.get("owner_address")
+    ]
+
+    if holder_addresses:
+        edges = await asyncio.gather(
+            *(
+                _fetch_funding_edge_for_holder(client, address, semaphore)
+                for address in holder_addresses
+            )
+        )
+    else:
+        edges = []
+
+    result = classify_clusters(edges, holder_count=len(holders))
+    saved = await save_token_cluster_state(pool, row, edges=edges, result=result)
+    saved["symbol"] = row.get("symbol")
+    saved["token_address"] = row.get("token_address")
+    return saved
+
+
+async def run_cluster_analysis_service(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+    helius_client: HeliusClient | None = None,
+) -> list[dict[str, Any]]:
+    rows = await get_cluster_inputs(pool, run_id=run_id)
+
+    semaphore = asyncio.Semaphore(HELIUS_PARALLELISM)
+    results: list[dict[str, Any]] = []
+
+    # Reuse a caller-provided HeliusClient when available (web_server lifespan
+    # owns one process-wide). Otherwise create-and-close a local one — keeps
+    # the standalone CLI scripts working.
+    if helius_client is not None:
+        for row in rows:
+            saved = await _process_token(pool, helius_client, row, semaphore)
+            results.append(saved)
+        return results
+
+    async with HeliusClient() as client:
+        for row in rows:
+            saved = await _process_token(pool, client, row, semaphore)
+            results.append(saved)
 
     return results

@@ -508,7 +508,10 @@ def classify_watchlist_decision(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def get_watchlist_inputs(pool: asyncpg.Pool) -> list[dict[str, Any]]:
+async def get_watchlist_inputs(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+) -> list[dict[str, Any]]:
     sql = """
     SELECT
         m.run_id,
@@ -654,11 +657,13 @@ async def get_watchlist_inputs(pool: asyncpg.Pool) -> list[dict[str, Any]]:
           AND wi.run_id = m.run_id
     ) wi ON TRUE
 
+    WHERE m.run_id = COALESCE($1, m.run_id)
+
     ORDER BY m.created_at DESC;
     """
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(sql)
+        rows = await conn.fetch(sql, run_id)
 
     return [dict(row) for row in rows]
 
@@ -930,8 +935,11 @@ async def save_watchlist_decision(
     return dict(saved)
 
 
-async def run_watchlist_decision_service(pool: asyncpg.Pool) -> list[dict[str, Any]]:
-    rows = await get_watchlist_inputs(pool)
+async def run_watchlist_decision_service(
+    pool: asyncpg.Pool,
+    run_id: int | None = None,
+) -> list[dict[str, Any]]:
+    rows = await get_watchlist_inputs(pool, run_id=run_id)
 
     results = []
 

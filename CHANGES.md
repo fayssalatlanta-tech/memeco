@@ -7,6 +7,187 @@ the project.
 
 ---
 
+## 2026-05-25 — Pipeline review batch: parallel Helius, batched DB writes, run-scoped services, lifespan singletons, async workers, modular layout
+
+### Why
+
+Eleven follow-ups from the recent code review, addressed as one coherent
+pass because they touch overlapping code paths. Headlines:
+
+1. **Sequential Helius requests (item 8)** — Cluster and wallet-manipulation
+   loops fetched one holder's transactions at a time. With the per-instance
+   rate limiter already in place, parallelizing with `asyncio.gather` +
+   `Semaphore(10)` is a free wall-clock win without changing upstream RPS.
+
+2. **Connection-pool abuse (item 9)** — Each per-holder edge save did its own
+   `pool.acquire()`. For 10 holders that's 11 round-trips per token. Now
+   one transaction per token via `executemany`.
+
+3. **Retention vs dashboard (item 10)** — Migration 012's 14-day retention
+   on `raw_api_snapshots` would silently empty dashboard fields like
+   `dex_active_boosts`, `logo_url`, and `priceChange` for older tokens.
+   Bumped to 90 days; long-term plan is to materialize these into a
+   dashboard-state table so retention can tighten back down.
+
+4. **Singleton clients via lifespan (item 11)** — Each service constructed
+   its own DexScreener/Helius client, defeating the per-instance rate
+   limiter. Now created once in the FastAPI lifespan and shared.
+
+5. **Periodic pool/loop churn (item 12)** — `mark_signal_*` and the worker
+   functions each called `asyncio.run(...)` and `create_pool()` on every
+   invocation. Workers now run as `asyncio.create_task` on the FastAPI main
+   loop and reuse the lifespan-managed pool.
+
+6. **Real DB in CI (item 13)** — Added a TimescaleDB service container and
+   a `migrations-smoke` job that applies every migration, re-applies for
+   idempotency, and asserts dry-run reports no pending work.
+
+7. **Monolithic web_server.py (item 14)** — Extracted scan state into
+   `app/jobs/scan_state.py` and workers + orchestrator into
+   `app/jobs/workers.py`. `web_server.py` dropped from ~2090 → ~1690 lines.
+
+8. **Duplicate dependency lists (item 15)** — Deleted `requirements.txt`.
+   `pyproject.toml` is the single source of truth.
+
+9. **Dev/CI Python mismatch (item 16)** — Added `.python-version` (3.12)
+   and Python 3.13 to the unit-tests matrix.
+
+10. **MAX(id) implicit run (item 17)** — Every analysis service now accepts
+    `run_id: int | None = None`. The orchestrator threads the run id
+    through explicitly so concurrent ingest paths can no longer race on
+    a global "current run." Standalone CLI scripts still pass `None`,
+    which falls back to the previous behavior.
+
+11. **Sloppy 4xx (item 18)** — `?limit=abc` used to silently fall back to
+    the default. Now returns 400 with a useful error message.
+
+### What changed
+
+#### Parallelism + batching
+
+- `app/services/cluster_analysis_service.py`
+  - `_fetch_funding_edge_for_holder` is run with `asyncio.gather` +
+    `Semaphore(HELIUS_PARALLELISM=10)`.
+  - New `save_token_cluster_state()` writes all funding edges in one
+    `executemany` and the cluster result in one `fetchrow`, all inside a
+    single `pool.acquire()` + transaction. Old `save_funding_edge` and
+    `save_cluster_result` kept for back-compat.
+  - `HeliusClient` is opened with `async with ...` so the underlying
+    `httpx.AsyncClient` is always closed.
+- `app/services/wallet_manipulation_service.py`
+  - Same shape: `_fetch_holder_relationship_data` fans out via
+    `asyncio.gather`, then `save_token_manipulation_state` batches all
+    relationship edges + the result row.
+
+#### Retention
+
+- `migrations/013_extend_raw_snapshots_retention.sql` (new)
+  - Drops the previous policy and re-adds with `INTERVAL '90 days'`.
+  - Idempotent.
+
+#### Singletons + async workers
+
+- `app/web_server.py`
+  - Lifespan now owns one `DexScreenerClient`, one `HeliusClient`, and
+    the `asyncpg.Pool`. All three close in `finally`.
+  - Routes that schedule background work pass `request.app` so workers
+    can pull `app.state.pool / dexscreener_client / helius_client`.
+- `app/ingest_dexscreener.py`
+  - `ingest_manual_token()` and `main()` now accept optional `pool=` and
+    `client=`. The CLI path still creates-and-closes its own; the FastAPI
+    workers pass the lifespan singletons. `main()` returns the new
+    `run_id`.
+
+#### Modular layout
+
+- `app/jobs/scan_state.py` (new) — SCAN_LOCK, SCAN_STATE, get/update/append
+  helpers, `utc_now_iso()`.
+- `app/jobs/workers.py` (new) — `scan_worker`, `manual_token_worker`,
+  `whale_signal_token_worker`, the `mark_signal_*` helpers,
+  `latest_decision_for_token`, `run_analysis_pipeline_with_status`,
+  `start_scan_job`, `start_manual_token_job`, `is_valid_solana_address`.
+- `app/web_server.py` keeps lifespan, routes, and SQL query helpers.
+
+#### Run-scoped services (item 17)
+
+Every `get_*_inputs` and `run_*_service` now accepts `run_id: int | None`.
+SQL fragments use `WHERE … = COALESCE($1, (SELECT MAX(id) FROM ingestion_runs))`
+so the legacy `None` path is identical to before. Updated services:
+
+- market_filter (`get_early_dex_candidates` + new `token_data_readiness` view)
+- contract_risk
+- liquidity_filter
+- wallet_analysis
+- cluster_analysis
+- wallet_intelligence
+- wallet_manipulation
+- dev_wallet_audit
+- dev_wallet_flow
+- watchlist_decision
+
+The orchestrator (`run_analysis_pipeline_with_status` in
+`app/jobs/workers.py`) threads the `run_id` returned by ingestion into
+every stage.
+
+- `migrations/014_run_scoped_readiness_view.sql` (new)
+  - Splits `latest_token_data_readiness` into a base `token_data_readiness`
+    (all runs) plus a thin back-compat view filtered to `MAX(id)`.
+
+#### CI + dev environment
+
+- `.github/workflows/ci.yml`
+  - Added Python 3.13 to the unit-tests matrix.
+  - Removed `requirements.txt` from `cache-dependency-path`.
+  - New `migrations-smoke` job: TimescaleDB service container, applies all
+    migrations, re-applies (idempotency), and verifies dry-run.
+- `.python-version` (new) — pins the editor to 3.12.
+- `requirements.txt` — deleted. `pyproject.toml` is the canonical list.
+
+#### Strict input parsing
+
+- `app/web_server.py`
+  - `parse_limit_str` now raises `ValueError` on non-integer input.
+  - New `_parse_limit_or_400` helper produces a 400 instead of falling
+    back to the default for `/api/watchlist`, `/api/runs`, and
+    `/api/whale-radar`. Missing/empty still returns the default.
+  - `is_valid_solana_address` tightened from 32–64 chars to 32–44 (real
+    base58 pubkey range).
+
+### Tests
+
+- All 72 existing tests still pass: `python -m unittest discover -s tests`
+  reports `Ran 72 tests in 0.014s — OK`.
+- No new tests added in this batch — the changes are mostly structural and
+  the existing classifier tests (which mock pools and clients) cover the
+  hot paths. The CI Postgres job now exercises the real migration chain
+  end to end on every PR.
+
+### Backwards compatibility
+
+- All public API URLs, request/response shapes, and CLI commands are
+  unchanged.
+- Service signatures only added optional kwargs (`run_id=None`,
+  `helius_client=None`); existing callers keep working.
+- `requirements.txt` users should switch to `pip install -e .` (the file
+  was a thin alias for `pyproject.toml` since the package was set up).
+- Legacy `latest_token_data_readiness` view still exists, so anything that
+  queried it directly (none in code, but possibly in ad-hoc psql sessions)
+  keeps working.
+
+### Follow-ups identified during this work (NOT addressed here)
+
+- **Materialize dashboard fields at ingest time.** The 90-day retention
+  bump buys breathing room, but the long-term fix is a
+  `token_dashboard_state` table refreshed in the ingest path so retention
+  can tighten without breaking the UI.
+- **Generic upstream error masking.** Several handlers still
+  `return {"error": str(exc)}`; should log + return a generic message.
+- **Per-event webhook idempotency.** Inbound `/api/whale-signal` events
+  could be deduped by `(signature, wallet, signal_type)` before queueing
+  analysis.
+
+---
+
 ## 2026-05-24 — Constant-time webhook auth, pinned dependencies, GitHub Actions CI
 
 ### Why

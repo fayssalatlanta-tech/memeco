@@ -301,9 +301,28 @@ async def discover_latest_completed_dex_tokens(
     return sort_discovered_pairs_by_recency(discovered)
 
 
-async def ingest_manual_token(token_address: str) -> dict:
-    pool = await create_pool()
-    client = DexScreenerClient()
+async def ingest_manual_token(
+    token_address: str,
+    *,
+    pool=None,
+    client: DexScreenerClient | None = None,
+) -> dict:
+    """
+    Ingest one token by mint address.
+
+    Optional ``pool`` / ``client`` let the caller share long-lived resources
+    (the FastAPI lifespan owns a singleton of each). When omitted, this
+    function creates its own and closes them in ``finally`` — preserves the
+    standalone CLI/script behavior.
+    """
+    owns_pool = pool is None
+    owns_client = client is None
+
+    if owns_pool:
+        pool = await create_pool()
+    if owns_client:
+        client = DexScreenerClient()
+
     run_id = None
 
     try:
@@ -344,13 +363,34 @@ async def ingest_manual_token(token_address: str) -> dict:
             )
         raise
     finally:
-        await client.aclose()
-        await pool.close()
+        if owns_client:
+            await client.aclose()
+        if owns_pool:
+            await pool.close()
 
 
-async def main():
-    pool = await create_pool()
-    client = DexScreenerClient()
+async def main(
+    *,
+    pool=None,
+    client: DexScreenerClient | None = None,
+) -> int | None:
+    """
+    Run a full DexScreener ingestion pass.
+
+    When ``pool`` / ``client`` are omitted this manages its own resources —
+    the standalone CLI path. The FastAPI worker passes shared singletons.
+
+    Returns the ``run_id`` so the orchestrator can scope downstream
+    analysis explicitly to this run instead of relying on
+    ``MAX(id) FROM ingestion_runs``.
+    """
+    owns_pool = pool is None
+    owns_client = client is None
+
+    if owns_pool:
+        pool = await create_pool()
+    if owns_client:
+        client = DexScreenerClient()
 
     run_id = None
     tokens_found = 0
@@ -445,6 +485,8 @@ async def main():
         logger.info("prices_saved=%s", prices_saved)
         logger.info("errors_count=%s", errors_count)
 
+        return run_id
+
     except Exception as e:
         if run_id is not None:
             await finish_ingestion_run(
@@ -462,8 +504,10 @@ async def main():
         raise
 
     finally:
-        await client.aclose()
-        await pool.close()
+        if owns_client:
+            await client.aclose()
+        if owns_pool:
+            await pool.close()
 
 
 if __name__ == "__main__":
