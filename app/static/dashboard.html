@@ -1282,6 +1282,53 @@
       color: var(--wait);
     }
 
+    /* Decision change badge -- shown briefly when a token's
+       final_watchlist_status flips between two consecutive auto-
+       refreshes. */
+    .decision-flip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line-strong);
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      animation: decision-flip-fade 30s ease-out forwards;
+    }
+
+    .decision-flip.up {
+      border-color: rgba(71, 229, 157, .55);
+      background: rgba(71, 229, 157, .14);
+      color: var(--pass);
+    }
+
+    .decision-flip.down {
+      border-color: rgba(255, 91, 110, .55);
+      background: rgba(255, 91, 110, .14);
+      color: var(--reject);
+    }
+
+    .decision-flip.side {
+      border-color: rgba(170, 178, 255, .55);
+      background: rgba(170, 178, 255, .12);
+      color: var(--review);
+    }
+
+    @keyframes decision-flip-fade {
+      /* Strong for the first ~25s, then fade out. */
+      0%, 80% { opacity: 1; transform: none; }
+      100% { opacity: 0; transform: translateY(-3px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .decision-flip { animation: none; }
+    }
+
     /* Decision tree drawer: hover any row to peek the full decision
        tree without leaving the dashboard. The drawer is fixed on the
        right edge and slides in from there; pin it with the pin button
@@ -2859,6 +2906,7 @@
         <div class="table-cell">
           <div class="cell-primary">
             <span class="badge ${badgeClass(row.final_watchlist_status)}">${escapeHtml(finalDecisionLabel(row.final_watchlist_status))}</span>
+            ${decisionFlipBadge(row)}
           </div>
           <div class="cell-sub two-lines">${escapeHtml(row.final_watchlist_reason || "No final reason")}</div>
         </div>
@@ -3226,13 +3274,16 @@
     }
 
     function renderDashboardRows(rows, allRows = rows) {
+      // Always run diffs against the full unfiltered set so a status
+      // change for a token currently filtered-out is still recorded
+      // and surfaces when the filter is cleared.
+      recordDecisionDiffs(allRows);
       const opportunities = allRows.filter((row) => row.final_watchlist_pass || String(row.final_watchlist_status || "").includes("PASS"));
       const risks = allRows.filter((row) => String(row.final_watchlist_status || "").includes("REJECT"));
       sideOpportunityCountEl.textContent = String(opportunities.length);
       sideRiskCountEl.textContent = String(risks.length);
       renderHero(allRows);
       renderOpportunityCards(allRows);
-      // Local starred filter sits on top of the server-side status filter.
       const filtered = starredOnly
         ? rows.filter((row) => isStarred(row.token_address))
         : rows;
@@ -3305,6 +3356,67 @@
       loadValueEl.textContent = `${meter.load}%`;
       loadStatusEl.textContent = meter.label;
       loadHintEl.textContent = meter.hint;
+    }
+
+    // ---- Decision diff (status flip badges) ----------------------------
+    //
+    // When a token's final_watchlist_status changes between two
+    // consecutive renders, we render a small "↑ now PASS" / "↓ was PASS"
+    // badge for ~30s in the Decision column. Keeps users aware of
+    // movement during a live scan without forcing a full re-read.
+
+    const FLIP_TTL_MS = 30_000;
+    const lastSeenStatus = new Map();   // address -> { status, ts }
+    const activeFlips = new Map();      // address -> { from, to, ts }
+
+    function rankDecision(status) {
+      // Same ordinal as the sort: higher = better.
+      const value = String(status || "");
+      if (value === "WATCHLIST_PASS") return 5;
+      if (value === "WATCHLIST_PASS_HIGH_RISK") return 4;
+      if (value === "WATCHLIST_REVIEW") return 3;
+      if (value.startsWith("WATCHLIST_WAIT")) return 2;
+      if (value.startsWith("WATCHLIST_REJECT")) return 1;
+      return 0;
+    }
+
+    function recordDecisionDiffs(rows) {
+      const now = Date.now();
+      // Mark anything that changed since last we saw it.
+      rows.forEach((row) => {
+        const addr = row.token_address;
+        if (!addr) return;
+        const status = String(row.final_watchlist_status || "");
+        const prev = lastSeenStatus.get(addr);
+        if (prev && prev.status && prev.status !== status) {
+          activeFlips.set(addr, { from: prev.status, to: status, ts: now });
+        }
+        lastSeenStatus.set(addr, { status, ts: now });
+      });
+      // Drop expired flips so the next render doesn't show stale badges.
+      for (const [addr, flip] of activeFlips) {
+        if (now - flip.ts > FLIP_TTL_MS) activeFlips.delete(addr);
+      }
+      // Drop stale "lastSeen" entries after 30 minutes so we don't false-
+      // alarm a token reappearing in the watchlist after a long absence.
+      const STALE_MS = 30 * 60 * 1000;
+      for (const [addr, info] of lastSeenStatus) {
+        if (now - info.ts > STALE_MS) lastSeenStatus.delete(addr);
+      }
+    }
+
+    function decisionFlipBadge(row) {
+      const flip = activeFlips.get(row.token_address);
+      if (!flip) return "";
+      const direction =
+        rankDecision(flip.to) > rankDecision(flip.from)
+          ? "up"
+          : rankDecision(flip.to) < rankDecision(flip.from)
+            ? "down"
+            : "side";
+      const arrow = direction === "up" ? "↑" : direction === "down" ? "↓" : "↻";
+      const label = `${arrow} now ${finalDecisionLabel(flip.to)}`;
+      return `<span class="decision-flip ${direction}" title="Was ${escapeHtml(finalDecisionLabel(flip.from))}">${escapeHtml(label)}</span>`;
     }
 
     // ---- Starred tokens (local) -----------------------------------------
