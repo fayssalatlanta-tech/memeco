@@ -9,12 +9,12 @@ import asyncio
 import asyncpg
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 
 from app.db import create_pool
 from app.dexscreener import DexScreenerClient
 from app.helius import HeliusClient
-from app.jobs.scan_state import get_scan_state
+from app.jobs.scan_state import get_scan_state, subscribe, unsubscribe
 from app.jobs.workers import (
     is_valid_solana_address,
     start_manual_token_job,
@@ -1616,6 +1616,54 @@ async def api_wallet_detail(
 @app.get("/api/scan/status")
 async def api_scan_status() -> dict:
     return get_scan_state()
+
+
+@app.get("/api/events")
+async def api_events(request: Request) -> StreamingResponse:
+    """
+    Server-Sent Events stream of scan / state changes.
+
+    Each connected browser tab gets its own queue. A heartbeat comment
+    every 15s keeps proxies from killing the connection. The current
+    state is sent on connect so the client doesn't need to make a
+    separate /api/scan/status fetch.
+    """
+    queue = subscribe()
+
+    async def event_stream():
+        try:
+            # Initial snapshot so the client doesn't see "Loading..."
+            # until the next state change.
+            yield _sse_format("scan_state", get_scan_state())
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    # Heartbeat comment -- ignored by EventSource clients
+                    # but keeps middleware boxes from terminating idle
+                    # connections.
+                    yield ": heartbeat\n\n"
+                    continue
+                yield _sse_format(event["type"], event["data"])
+        finally:
+            unsubscribe(queue)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",  # disable Nginx buffering if proxied
+        },
+    )
+
+
+def _sse_format(event_type: str, data: Any) -> str:
+    """Format an SSE message: ``event: <type>\\ndata: <json>\\n\\n``."""
+    payload = json.dumps(data, default=json_default, separators=(",", ":"))
+    return f"event: {event_type}\ndata: {payload}\n\n"
 
 
 # ---- API POST routes --------------------------------------------------------

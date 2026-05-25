@@ -4624,7 +4624,63 @@
     setFreshness("Loading...", "paused");
     loadDashboard();
     loadScanStatus();
-    window.setInterval(loadScanStatus, 3000);
+
+    // ---- Real-time event stream (SSE) -----------------------------------
+    //
+    // Replaces the old setInterval(loadScanStatus, 3000) poll. The
+    // browser's EventSource auto-reconnects with exponential back-off if
+    // the connection drops; we never need to manage that ourselves.
+    // Falls back to polling if the browser somehow lacks EventSource
+    // (very rare) or the connection cannot be established.
+
+    let scanEventSource = null;
+    let scanFallbackTimer = null;
+
+    function startScanFallbackPoll() {
+      if (scanFallbackTimer) return;
+      scanFallbackTimer = window.setInterval(loadScanStatus, 3000);
+    }
+
+    function stopScanFallbackPoll() {
+      if (scanFallbackTimer) {
+        clearInterval(scanFallbackTimer);
+        scanFallbackTimer = null;
+      }
+    }
+
+    function connectScanEventStream() {
+      if (typeof window.EventSource !== "function") {
+        startScanFallbackPoll();
+        return;
+      }
+      try {
+        scanEventSource = new EventSource("/api/events");
+      } catch (error) {
+        startScanFallbackPoll();
+        return;
+      }
+      scanEventSource.addEventListener("scan_state", (event) => {
+        try {
+          const state = JSON.parse(event.data);
+          renderScanState(state);
+          stopScanFallbackPoll();
+        } catch (error) {
+          // Malformed event -- ignore.
+        }
+      });
+      // scan_step events are already covered by scan_state snapshots.
+      // Keep the listener registered for future granular UI (e.g. toast
+      // when a step fails) so the server-side broadcast isn't wasted.
+      scanEventSource.addEventListener("scan_step", () => { /* reserved */ });
+      scanEventSource.addEventListener("error", () => {
+        // EventSource handles reconnection automatically; we just need
+        // to fall back to polling while it figures things out so the
+        // user isn't stuck looking at stale data.
+        startScanFallbackPoll();
+      });
+    }
+
+    connectScanEventStream();
     // 1 Hz tick for the "Updated Xs ago" label so it stays current
     // without re-fetching anything.
     freshnessTimer = window.setInterval(tickFreshness, 1000);
