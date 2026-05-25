@@ -15,7 +15,6 @@
       --text: #f8f7ff;
       --muted: #a4a8bd;
       --line: rgba(255, 255, 255, .12);
-      --line-dark: #dfe3e8;
       --pass: #16a36a;
       --wait: #b7791f;
       --reject: #c7362f;
@@ -446,7 +445,9 @@
     }
 
     .decision-step {
-      border: 1px solid var(--line-dark);
+      border-width: 1px;
+      border-style: solid;
+      border-color: #dfe3e8;
       border-left: 4px solid #98a2b3;
       border-radius: 8px;
       padding: 12px;
@@ -558,7 +559,9 @@
     }
 
     .timeline-card {
-      border: 1px solid var(--line-dark);
+      border-width: 1px;
+      border-style: solid;
+      border-color: #dfe3e8;
       border-radius: 8px;
       background: #ffffff;
       padding: 12px;
@@ -772,7 +775,9 @@
     }
 
     .profit-stat {
-      border: 1px solid var(--line-dark);
+      border-width: 1px;
+      border-style: solid;
+      border-color: #dfe3e8;
       border-radius: 8px;
       background: #ffffff;
       padding: 12px;
@@ -1135,34 +1140,30 @@
       return new URLSearchParams(window.location.search);
     }
 
-    function escapeHtml(value) {
-      return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
+    // Shared formatting helpers come from /static/shared/utils.js.
+    // The <script src="..."> tag in <head> is synchronous (no defer),
+    // so MemecoUtils is guaranteed to be defined here.
+    const {
+      escapeHtml,
+      attr,
+      formatDate,
+      numberOrNull,
+    } = window.MemecoUtils;
 
-    function attr(value) {
-      return escapeHtml(value);
-    }
+    // Aliases preserving local call signatures:
+    //   asNumeric  — historical name for numberOrNull.
+    //   shortAddress — token_detail uses 6/4 split (mint addresses), not the
+    //                  shared default 6/6.
+    const asNumeric = numberOrNull;
+    const shortAddress = (value) => window.MemecoUtils.shortAddress(value, 6, 4);
 
-    function formatDate(value) {
-      if (!value) return "N/A";
-      return new Date(value).toLocaleString();
-    }
-
+    // Page-local formatters intentionally diverge from MemecoUtils:
+    //   formatNumber   — no minimumFractionDigits (e.g. 7.5 stays "7.5").
+    //   formatPercent  — always 2 decimals, including for 0 ("0.00%").
     function validDate(value) {
       if (!value) return null;
       const date = new Date(value);
       return Number.isNaN(date.getTime()) ? null : date;
-    }
-
-    function shortAddress(value) {
-      const text = String(value || "");
-      if (text.length <= 14) return text || "N/A";
-      return `${text.slice(0, 6)}...${text.slice(-4)}`;
     }
 
     function formatNumber(value, digits = 2) {
@@ -1170,11 +1171,6 @@
       const number = Number(value);
       if (!Number.isFinite(number)) return "N/A";
       return number.toLocaleString(undefined, { maximumFractionDigits: digits });
-    }
-
-    function asNumeric(value) {
-      const number = Number(value);
-      return Number.isFinite(number) ? number : null;
     }
 
     function formatPercent(value) {
