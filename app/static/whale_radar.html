@@ -1449,29 +1449,48 @@
       await loadRadar();
     }
 
-    auditButton.addEventListener("click", () => {
-      runAction("/api/whale-radar/audit", "Wallet audit").catch((error) => {
-        systemStatus.textContent = `Wallet audit failed: ${error.message}`;
+    // Each action button below mutates server-side state and can be slow
+    // or expensive (re-querying every wallet, hitting an external webhook).
+    // We wrap them in confirm() so a stray click can't kick off an audit.
+    function confirmedAction(button, path, label, prompt) {
+      button.addEventListener("click", () => {
+        if (!window.confirm(prompt)) {
+          systemStatus.textContent = `${label} cancelled.`;
+          return;
+        }
+        runAction(path, label).catch((error) => {
+          systemStatus.textContent = `${label} failed: ${error.message}`;
+        });
       });
-    });
+    }
 
-    priceButton.addEventListener("click", () => {
-      runAction("/api/whale-radar/refresh-prices", "Price refresh").catch((error) => {
-        systemStatus.textContent = `Price refresh failed: ${error.message}`;
-      });
-    });
+    confirmedAction(
+      auditButton,
+      "/api/whale-radar/audit",
+      "Wallet audit",
+      "Run wallet audit?\n\nThis recomputes intelligence for every tracked wallet and can take several minutes.",
+    );
 
-    survivalButton.addEventListener("click", () => {
-      runAction("/api/whale-radar/survival", "Survival profiling").catch((error) => {
-        systemStatus.textContent = `Survival profiling failed: ${error.message}`;
-      });
-    });
+    confirmedAction(
+      priceButton,
+      "/api/whale-radar/refresh-prices",
+      "Price refresh",
+      "Refresh price data for all tracked tokens?\n\nThis re-queries DexScreener for every active wallet position.",
+    );
 
-    webhookButton.addEventListener("click", () => {
-      runAction("/api/whale-radar/sync-webhook", "Webhook sync").catch((error) => {
-        systemStatus.textContent = `Webhook sync failed: ${error.message}`;
-      });
-    });
+    confirmedAction(
+      survivalButton,
+      "/api/whale-radar/survival",
+      "Survival profiling",
+      "Run survival profiling?\n\nThis re-classifies whale wallets by their survival metrics and can take several minutes.",
+    );
+
+    confirmedAction(
+      webhookButton,
+      "/api/whale-radar/sync-webhook",
+      "Webhook sync",
+      "Sync the Helius webhook subscription?\n\nThis updates the external webhook on Helius and may briefly drop incoming wallet events while it reconnects.",
+    );
 
     loadRadar().catch((error) => {
       summaryGrid.innerHTML = `<article class="metric"><div class="label">Error</div><div class="value">${escapeHtml(error.message)}</div><small>Check the local server and database connection.</small></article>`;

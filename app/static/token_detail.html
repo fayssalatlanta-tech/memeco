@@ -423,16 +423,12 @@
     .panel {
       overflow: auto;
       margin-top: 18px;
-      background: rgba(247, 248, 252, .98);
-      border-color: rgba(255, 255, 255, .14);
       box-shadow: var(--shadow-soft);
     }
 
     .panel-title {
       padding: 16px 18px;
-      border-bottom: 1px solid rgba(15, 23, 42, .08);
-      background: linear-gradient(180deg, #ffffff, #f7f8fc);
-      color: #111827;
+      border-bottom: 1px solid var(--line);
       font-size: 15px;
       font-weight: 860;
     }
@@ -447,31 +443,22 @@
     .decision-step {
       border-width: 1px;
       border-style: solid;
-      border-color: #dfe3e8;
       border-left: 4px solid #98a2b3;
       border-radius: 8px;
       padding: 12px;
-      background: #ffffff;
       min-height: 108px;
-      box-shadow: 0 10px 24px rgba(15, 23, 42, .04);
     }
 
     .decision-step.pass {
-      border-color: #abefc6;
       border-left-color: var(--pass);
-      background: #f6fef9;
     }
 
     .decision-step.warning, .decision-step.pending {
-      border-color: #fedf89;
       border-left-color: var(--wait);
-      background: #fffcf5;
     }
 
     .decision-step.danger {
-      border-color: #fecdca;
       border-left-color: var(--reject);
-      background: #fff6f5;
     }
 
     .decision-step-head {
@@ -495,7 +482,6 @@
     }
 
     .decision-step-reason {
-      color: #344054;
       line-height: 1.45;
       white-space: normal;
     }
@@ -521,7 +507,6 @@
       top: 22px;
       bottom: 22px;
       width: 2px;
-      background: linear-gradient(180deg, #d9d6fe, #e4e7ec);
     }
 
     .timeline-item {
@@ -536,10 +521,10 @@
       width: 16px;
       height: 16px;
       margin: 6px auto 0;
-      border: 3px solid #ffffff;
+      border-width: 3px;
+      border-style: solid;
       border-radius: 50%;
       background: #98a2b3;
-      box-shadow: 0 0 0 1px #d0d5dd;
       z-index: 1;
     }
 
@@ -561,26 +546,8 @@
     .timeline-card {
       border-width: 1px;
       border-style: solid;
-      border-color: #dfe3e8;
       border-radius: 8px;
-      background: #ffffff;
       padding: 12px;
-      box-shadow: 0 10px 24px rgba(15, 23, 42, .04);
-    }
-
-    .timeline-item.pass .timeline-card {
-      border-color: #abefc6;
-      background: #f6fef9;
-    }
-
-    .timeline-item.warning .timeline-card {
-      border-color: #fedf89;
-      background: #fffcf5;
-    }
-
-    .timeline-item.danger .timeline-card {
-      border-color: #fecdca;
-      background: #fff6f5;
     }
 
     .timeline-head {
@@ -604,7 +571,6 @@
     }
 
     .timeline-body {
-      color: #344054;
       line-height: 1.45;
       white-space: normal;
     }
@@ -613,13 +579,12 @@
       width: 100%;
       border-collapse: collapse;
       min-width: 1120px;
-      background: #ffffff;
     }
 
     th, td {
       padding: 11px 12px;
       text-align: left;
-      border-bottom: 1px solid rgba(15, 23, 42, .08);
+      border-bottom: 1px solid var(--line);
       vertical-align: top;
       white-space: nowrap;
     }
@@ -628,7 +593,6 @@
       position: sticky;
       top: 0;
       z-index: 1;
-      background: #f3f5fb;
       font-size: 12px;
       font-weight: 820;
       text-transform: uppercase;
@@ -639,20 +603,8 @@
       transition: background .16s ease;
     }
 
-    tbody tr:hover {
-      background: #fbfcff;
-    }
-
     tr:last-child td {
       border-bottom: none;
-    }
-
-    tr.suspicious-row {
-      background: #fff1f0;
-    }
-
-    tr.warning-row {
-      background: #fffbeb;
     }
 
     tr.suspicious-row td:first-child {
@@ -770,19 +722,15 @@
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
       padding: 14px;
-      border-bottom: 1px solid rgba(15, 23, 42, .08);
-      background: #fafbfc;
+      border-bottom: 1px solid var(--line);
     }
 
     .profit-stat {
       border-width: 1px;
       border-style: solid;
-      border-color: #dfe3e8;
       border-radius: 8px;
-      background: #ffffff;
       padding: 12px;
       min-height: 72px;
-      box-shadow: 0 10px 24px rgba(15, 23, 42, .04);
     }
 
     .profit-stat-label {
@@ -836,7 +784,6 @@
       white-space: normal;
       min-width: 260px;
       max-width: 440px;
-      color: #344054;
     }
 
     /* Full dark detail surface */

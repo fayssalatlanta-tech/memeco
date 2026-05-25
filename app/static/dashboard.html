@@ -882,13 +882,86 @@
       overflow: hidden;
     }
 
+    /* Density toggle: collapse the busy market-snapshot grids and verbose
+       reasons in compact mode so each row stays around 70px instead of
+       ~150px. Signal pills + decision badge + token identity stay visible
+       in both modes since they're the primary at-a-glance information. */
+    .density-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, .045);
+      box-shadow: none;
+    }
+
+    .density-toggle .density-option {
+      height: 30px;
+      min-height: 30px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+      box-shadow: none;
+      cursor: pointer;
+    }
+
+    .density-toggle .density-option + .density-option {
+      border-left: 1px solid var(--line);
+    }
+
+    .density-toggle .density-option:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, .04);
+      transform: none;
+      box-shadow: none;
+    }
+
+    .density-toggle .density-option.is-active {
+      color: #070711;
+      background: linear-gradient(135deg, #c8b9ff, #8f76ff);
+    }
+
+    .table-card.density-compact .market-snapshot,
+    .table-card.density-compact .cell-sub.two-lines,
+    .table-card.density-compact .table-card .market-snapshot {
+      display: none;
+    }
+
+    .table-card.density-compact .movement-strip {
+      display: none;
+    }
+
+    .table-card.density-compact tbody tr {
+      min-height: 56px;
+    }
+
+    .table-card.density-compact td {
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+
+    .table-card.density-compact .table-cell {
+      gap: 4px;
+      min-height: 36px;
+    }
+
+    .table-card.density-compact .stack-cell {
+      gap: 4px;
+    }
+
     .table-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
       padding: 16px 18px;
-      border-bottom: 1px solid rgba(15, 23, 42, .08);
+      border-bottom: 1px solid var(--line);
     }
 
     .table-title {
@@ -942,7 +1015,7 @@
     th, td {
       padding: 12px 14px;
       text-align: left;
-      border-bottom: 1px solid rgba(15, 23, 42, .08);
+      border-bottom: 1px solid var(--line);
       vertical-align: middle;
       white-space: normal;
     }
@@ -1045,7 +1118,6 @@
     .reason {
       min-width: 220px;
       max-width: 330px;
-      color: #344054;
       white-space: normal;
     }
 
@@ -1062,7 +1134,6 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      color: #344054;
       font-size: 12px;
       line-height: 1.25;
     }
@@ -1095,7 +1166,6 @@
       align-items: center;
       gap: 6px;
       min-width: 0;
-      color: #111827;
       font-size: 13px;
       font-weight: 850;
     }
@@ -1682,13 +1752,19 @@
         <div class="opportunity-grid" id="opportunityGrid"></div>
       </section>
 
-      <section class="table-card">
+      <section class="table-card" id="watchlistTable">
         <div class="table-head">
           <div>
             <div class="table-title">Decision Stream</div>
             <div class="table-note">Latest analyzed tokens remain first. Open a token for the full decision tree.</div>
           </div>
-          <div class="table-note" id="tableCount">0 tokens</div>
+          <div style="display:flex; align-items:center; gap:14px;">
+            <div class="density-toggle" role="group" aria-label="Row density">
+              <button class="density-option" type="button" data-density="detailed" aria-pressed="true">Detailed</button>
+              <button class="density-option" type="button" data-density="compact" aria-pressed="false">Compact</button>
+            </div>
+            <div class="table-note" id="tableCount">0 tokens</div>
+          </div>
         </div>
         <div class="table-wrap">
           <table>
@@ -2727,6 +2803,42 @@
       if (!button) return;
       copyAddress(button.dataset.address || "", button);
     });
+
+    // Density toggle. "compact" hides per-cell market-snapshot grids, the
+    // long final-decision reason, and the price movement strip — so each
+    // row drops from ~150px to ~56px. Choice persists to localStorage so
+    // it survives reloads.
+    const watchlistTableEl = document.querySelector("#watchlistTable");
+    const densityButtons = Array.from(document.querySelectorAll(".density-option"));
+    const DENSITY_KEY = "dashboard:tableDensity";
+
+    function applyDensity(mode) {
+      const value = mode === "compact" ? "compact" : "detailed";
+      watchlistTableEl.classList.toggle("density-compact", value === "compact");
+      densityButtons.forEach((button) => {
+        const isActive = button.dataset.density === value;
+        button.classList.toggle("is-active", isActive);
+        button.setAttribute("aria-pressed", isActive ? "true" : "false");
+      });
+      try {
+        localStorage.setItem(DENSITY_KEY, value);
+      } catch (error) {
+        // Safari private mode etc. — silent fallback to in-memory only.
+      }
+    }
+
+    densityButtons.forEach((button) => {
+      button.addEventListener("click", () => applyDensity(button.dataset.density));
+    });
+
+    let initialDensity = "detailed";
+    try {
+      const stored = localStorage.getItem(DENSITY_KEY);
+      if (stored === "compact" || stored === "detailed") initialDensity = stored;
+    } catch (error) {
+      // Ignore — default already set.
+    }
+    applyDensity(initialDensity);
 
     loadDashboard();
     loadScanStatus();
