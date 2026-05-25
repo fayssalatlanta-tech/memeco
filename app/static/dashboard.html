@@ -1652,6 +1652,27 @@
       min-width: 0;
     }
 
+    .sparkline {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 4px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, .04);
+      flex-shrink: 0;
+      line-height: 0;
+    }
+
+    .sparkline.up { color: var(--pass); }
+    .sparkline.down { color: var(--reject); }
+
+    body.density-compact .sparkline {
+      /* Hide the sparkline in compact mode -- it's a "nice to have"
+         signal that the user has explicitly opted out of by going
+         compact. */
+      display: none;
+    }
+
     .movement-chip {
       display: inline-flex;
       align-items: center;
@@ -3136,6 +3157,50 @@
       return dexscreenerChange(row, fallbackKey);
     }
 
+    function renderSparkline(row) {
+      // Inline SVG: tiny price trend chart from the last ~24 hours.
+      // Server returns up to 24 hourly close prices in chronological
+      // order via row.price_sparkline (JSONB array of numbers).
+      const raw = row.price_sparkline;
+      const points = Array.isArray(raw)
+        ? raw
+        : typeof raw === "string"
+          ? (() => { try { return JSON.parse(raw); } catch (e) { return []; } })()
+          : [];
+      // Need at least 2 points to draw a line.
+      const numbers = points
+        .map((p) => Number(p))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      if (numbers.length < 2) return "";
+
+      const width = 64;
+      const height = 20;
+      const min = Math.min(...numbers);
+      const max = Math.max(...numbers);
+      const range = max - min || max || 1;   // avoid div-by-zero on a flat line
+      const stepX = numbers.length > 1 ? width / (numbers.length - 1) : 0;
+      const path = numbers
+        .map((value, index) => {
+          const x = (index * stepX).toFixed(2);
+          // Higher values render *higher* on screen (smaller y).
+          const y = (height - ((value - min) / range) * height).toFixed(2);
+          return `${index === 0 ? "M" : "L"}${x},${y}`;
+        })
+        .join(" ");
+
+      const direction = numbers[numbers.length - 1] >= numbers[0] ? "up" : "down";
+      const last = numbers[numbers.length - 1];
+      const tooltip = `24h: ${formatPrice(min)} → ${formatPrice(last)} (peak ${formatPrice(max)})`;
+
+      return `
+        <span class="sparkline ${direction}" title="${escapeHtml(tooltip)}" aria-hidden="true">
+          <svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" preserveAspectRatio="none">
+            <path d="${path}" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </span>
+      `;
+    }
+
     function renderMovementStrip(row) {
       const windows = [
         ["1h", movementValue(row, "price_change_1h_pct", "h1")],
@@ -3144,6 +3209,7 @@
       ];
       return `
         <div class="movement-strip" title="Price movement from the latest stored price snapshot">
+          ${renderSparkline(row)}
           ${windows.map(([label, value]) => `
             <span class="movement-chip ${movementTone(value)}">
               <span class="move-label">${label}</span>

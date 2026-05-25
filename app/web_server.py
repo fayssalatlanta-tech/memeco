@@ -186,6 +186,7 @@ async def fetch_watchlist(pool: asyncpg.Pool, status: str | None, limit: int) ->
                         ROUND(((latest_price.price_usd - price_24h.price_usd) / price_24h.price_usd) * 100, 2)
                     ELSE NULL
                 END AS price_change_24h_pct,
+                COALESCE(sparkline.sparkline_points, '[]'::jsonb) AS price_sparkline,
                 latest_wd.market_filter_status,
                 latest_wd.market_filter_pass,
                 latest_wd.market_warning_level,
@@ -341,6 +342,26 @@ async def fetch_watchlist(pool: asyncpg.Pool, status: str | None, limit: int) ->
                 ORDER BY tp.time DESC
                 LIMIT 1
             ) price_24h ON TRUE
+            LEFT JOIN LATERAL (
+                -- 24-hour price sparkline. Read from the hourly continuous
+                -- aggregate (migration 012) so this stays cheap and keeps
+                -- working past the 30-day raw_prices retention cutoff.
+                -- Returns up to 24 chronologically-ordered close prices.
+                SELECT
+                    COALESCE(
+                        jsonb_agg(close_price_usd ORDER BY bucket ASC),
+                        '[]'::jsonb
+                    ) AS sparkline_points
+                FROM (
+                    SELECT bucket, close_price_usd
+                    FROM token_prices_hourly
+                    WHERE pair_id = latest_wd.pair_id
+                      AND close_price_usd IS NOT NULL
+                      AND bucket >= NOW() - INTERVAL '24 hours'
+                    ORDER BY bucket DESC
+                    LIMIT 24
+                ) recent_buckets
+            ) sparkline ON TRUE
             LEFT JOIN LATERAL (
                 SELECT jsonb_build_object(
                     'liquidity_usd', latest_wd.details->'liquidity_usd',
