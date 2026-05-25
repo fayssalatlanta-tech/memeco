@@ -308,10 +308,50 @@
     }
 
     .status-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       color: var(--muted);
       font-size: 12px;
       min-width: 86px;
       text-align: right;
+      white-space: nowrap;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(248, 247, 255, .28);
+      box-shadow: 0 0 0 0 rgba(74, 227, 157, 0);
+      flex-shrink: 0;
+      transition: background .2s ease;
+    }
+
+    .live-dot.live {
+      background: var(--pass);
+      animation: live-pulse 2.4s ease-in-out infinite;
+    }
+
+    .live-dot.paused {
+      background: rgba(248, 247, 255, .22);
+    }
+
+    .live-dot.error {
+      background: var(--reject);
+    }
+
+    @keyframes live-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(71, 229, 157, .35); }
+      50% { box-shadow: 0 0 0 5px rgba(71, 229, 157, 0); }
+    }
+
+    .status-note .freshness {
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .live-dot.live { animation: none; }
     }
 
     .dashboard-grid {
@@ -955,6 +995,67 @@
       font-weight: 850;
       text-transform: uppercase;
       letter-spacing: .06em;
+    }
+
+    th.sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    th.sortable:hover .sort-arrow {
+      opacity: .65;
+    }
+
+    th .sort-arrow {
+      display: inline-block;
+      margin-left: 6px;
+      font-size: 10px;
+      opacity: .25;
+      transition: opacity .16s ease;
+    }
+
+    th[aria-sort="ascending"] .sort-arrow,
+    th[aria-sort="descending"] .sort-arrow {
+      opacity: 1;
+      color: var(--accent);
+    }
+
+    /* Skeleton loaders -- shown only on the first paint while the
+       initial /api/watchlist call is in flight. Auto-refresh keeps the
+       currently-rendered rows in place so skeletons never replace real
+       data. */
+    .skeleton-row td {
+      padding: 18px 16px;
+    }
+
+    .skeleton-row .skeleton-block {
+      height: 14px;
+      border-radius: 6px;
+      background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, .04) 0%,
+        rgba(255, 255, 255, .12) 50%,
+        rgba(255, 255, 255, .04) 100%
+      );
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.4s ease-in-out infinite;
+    }
+
+    .skeleton-row .skeleton-block + .skeleton-block {
+      margin-top: 8px;
+    }
+
+    .skeleton-row .skeleton-block.short { width: 40%; }
+    .skeleton-row .skeleton-block.medium { width: 65%; }
+    .skeleton-row .skeleton-block.wide { width: 90%; }
+
+    @keyframes skeleton-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .skeleton-row .skeleton-block { animation: none; }
     }
 
     tbody tr {
@@ -1638,7 +1739,10 @@
           </form>
           <button id="scanButton" type="button">Run Scan</button>
           <button id="refreshButton" type="button" class="secondary-button">Refresh</button>
-          <div class="status-note" id="statusNote">Loading...</div>
+          <div class="status-note" id="statusNote" aria-live="polite">
+            <span class="live-dot" id="liveDot" title="Live updates"></span>
+            <span class="freshness" id="freshness">Loading...</span>
+          </div>
         </div>
       </section>
 
@@ -1703,13 +1807,13 @@
             </colgroup>
             <thead>
               <tr>
-                <th>Token</th>
-                <th>Opportunity</th>
-                <th>Safety</th>
-                <th>Liquidity</th>
-                <th>Wallet Signals</th>
-                <th>Decision</th>
-                <th>Updated</th>
+                <th class="sortable" data-sort-key="symbol">Token<span class="sort-arrow" aria-hidden="true">↕</span></th>
+                <th class="sortable" data-sort-key="opportunity">Opportunity<span class="sort-arrow" aria-hidden="true">↕</span></th>
+                <th class="sortable" data-sort-key="safety">Safety<span class="sort-arrow" aria-hidden="true">↕</span></th>
+                <th class="sortable" data-sort-key="liquidity">Liquidity<span class="sort-arrow" aria-hidden="true">↕</span></th>
+                <th class="sortable" data-sort-key="manipulation">Wallet Signals<span class="sort-arrow" aria-hidden="true">↕</span></th>
+                <th class="sortable" data-sort-key="decision">Decision<span class="sort-arrow" aria-hidden="true">↕</span></th>
+                <th class="sortable" data-sort-key="updated">Updated<span class="sort-arrow" aria-hidden="true">↕</span></th>
               </tr>
             </thead>
             <tbody id="watchlistRows"></tbody>
@@ -1729,6 +1833,8 @@
     const tableCountEl = document.querySelector("#tableCount");
     const rowsEl = document.querySelector("#watchlistRows");
     const statusNoteEl = document.querySelector("#statusNote");
+    const liveDotEl = document.querySelector("#liveDot");
+    const freshnessEl = document.querySelector("#freshness");
     const statusFilterEl = document.querySelector("#statusFilter");
     const refreshButtonEl = document.querySelector("#refreshButton");
     const scanButtonEl = document.querySelector("#scanButton");
@@ -2499,6 +2605,24 @@
       `).join("");
     }
 
+    function renderSkeletonRows(count = 6) {
+      // 7 columns to match the watchlist table. Token column gets a
+      // two-line skeleton (logo + symbol + name); other columns alternate
+      // widths so the table doesn't look like a striped barcode.
+      const widths = ["wide", "medium", "wide", "medium", "wide", "short", "medium"];
+      const cells = widths.map((w) => `<td><div class="skeleton-block ${w}"></div></td>`).join("");
+      const tokenCell = `
+        <td>
+          <div class="skeleton-block medium"></div>
+          <div class="skeleton-block short"></div>
+        </td>
+      `;
+      const cellsAfterToken = widths.slice(1).map((w) => `<td><div class="skeleton-block ${w}"></div></td>`).join("");
+      const row = `<tr class="skeleton-row" aria-hidden="true">${tokenCell}${cellsAfterToken}</tr>`;
+      rowsEl.innerHTML = row.repeat(count);
+      tableCountEl.textContent = "Loading…";
+    }
+
     function renderRows(rows) {
       tableCountEl.textContent = `${rows.length} tokens`;
       if (!rows.length) {
@@ -2525,7 +2649,8 @@
       sideRiskCountEl.textContent = String(risks.length);
       renderHero(allRows);
       renderOpportunityCards(allRows);
-      renderRows(rows);
+      currentRows = rows;
+      renderRows(sortedRows(currentRows));
     }
 
     function elapsedMinutes(startedAt) {
@@ -2595,10 +2720,224 @@
       loadHintEl.textContent = meter.hint;
     }
 
+    // ---- Table sorting --------------------------------------------------
+    //
+    // Headers cycle: unsorted → descending → ascending → unsorted (back to
+    // backend's natural "latest first" order). All sorting is client-side
+    // over the rows already on the page; no extra requests.
+
+    let currentRows = [];
+    let currentSort = { key: null, dir: null };
+
+    const SORT_EXTRACTORS = {
+      symbol: (row) => String(row.symbol || row.name || row.token_address || "").toLowerCase(),
+      opportunity: (row) => {
+        // Lower insider probability is better → invert so descending means
+        // "best opportunities first."
+        const details = MemecoUtils.parseDetails(row.details);
+        const insider = MemecoUtils.numberOrNull(details.insider_probability_score);
+        return insider === null ? null : -insider;
+      },
+      safety: (row) => {
+        // Lower risk score = safer → invert so descending = "safest first."
+        const score = MemecoUtils.numberOrNull(row.risk_score);
+        return score === null ? null : -score;
+      },
+      liquidity: (row) => MemecoUtils.numberOrNull(row.liquidity_usd),
+      manipulation: (row) => {
+        // Lower manipulation = cleaner → invert.
+        const score = MemecoUtils.numberOrNull(row.manipulation_score);
+        return score === null ? null : -score;
+      },
+      decision: (row) => {
+        // Pass > High Risk > Review > Wait > Reject. Map to a sortable
+        // ordinal so "descending" surfaces the cleanest decisions first.
+        const status = String(row.final_watchlist_status || "");
+        if (status === "WATCHLIST_PASS") return 5;
+        if (status === "WATCHLIST_PASS_HIGH_RISK") return 4;
+        if (status === "WATCHLIST_REVIEW") return 3;
+        if (status.startsWith("WATCHLIST_WAIT")) return 2;
+        if (status.startsWith("WATCHLIST_REJECT")) return 1;
+        return 0;
+      },
+      updated: (row) => {
+        const ts = row.created_at ? Date.parse(row.created_at) : NaN;
+        return Number.isFinite(ts) ? ts : null;
+      },
+    };
+
+    function sortedRows(rows) {
+      if (!currentSort.key || !currentSort.dir) return rows;
+      const extractor = SORT_EXTRACTORS[currentSort.key];
+      if (!extractor) return rows;
+      const dir = currentSort.dir === "asc" ? 1 : -1;
+      // Stable sort: copy first.
+      return rows.slice().sort((a, b) => {
+        const va = extractor(a);
+        const vb = extractor(b);
+        // Nulls always sink to the bottom regardless of direction.
+        if (va === null && vb === null) return 0;
+        if (va === null) return 1;
+        if (vb === null) return -1;
+        if (va < vb) return -1 * dir;
+        if (va > vb) return 1 * dir;
+        return 0;
+      });
+    }
+
+    function updateSortHeaders() {
+      document.querySelectorAll("th.sortable").forEach((th) => {
+        const key = th.dataset.sortKey;
+        if (!currentSort.dir || currentSort.key !== key) {
+          th.removeAttribute("aria-sort");
+          th.querySelector(".sort-arrow").textContent = "↕";
+          return;
+        }
+        th.setAttribute("aria-sort", currentSort.dir === "asc" ? "ascending" : "descending");
+        th.querySelector(".sort-arrow").textContent = currentSort.dir === "asc" ? "↑" : "↓";
+      });
+    }
+
+    function setSort(key) {
+      if (currentSort.key !== key) {
+        currentSort = { key, dir: "desc" };
+      } else if (currentSort.dir === "desc") {
+        currentSort = { key, dir: "asc" };
+      } else {
+        currentSort = { key: null, dir: null };
+      }
+      updateSortHeaders();
+      writeUrlState();
+      renderRows(sortedRows(currentRows));
+    }
+
+    document.querySelectorAll("th.sortable").forEach((th) => {
+      th.addEventListener("click", () => setSort(th.dataset.sortKey));
+    });
+    //
+    // Persist the visible decision filter in the URL so users can bookmark
+    // a specific view ("?status=WATCHLIST_PASS") and share it. Future
+    // additions (sort column, density, …) can extend writeUrlState/
+    // readUrlState without touching call sites.
+
+    function readUrlState() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        return {
+          status: params.get("status") || "",
+          sort: params.get("sort") || "",
+          dir: params.get("dir") || "",
+        };
+      } catch (error) {
+        return { status: "", sort: "", dir: "" };
+      }
+    }
+
+    function writeUrlState() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const status = statusFilterEl.value;
+        if (status) params.set("status", status); else params.delete("status");
+        if (currentSort.key && currentSort.dir) {
+          params.set("sort", currentSort.key);
+          params.set("dir", currentSort.dir);
+        } else {
+          params.delete("sort");
+          params.delete("dir");
+        }
+        const query = params.toString();
+        const next = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+        window.history.replaceState(null, "", next);
+      } catch (error) {
+        // Older browsers / file:// fallthrough; silently ignored.
+      }
+    }
+
+    function applyUrlState() {
+      const { status, sort, dir } = readUrlState();
+      if (status && Array.from(statusFilterEl.options).some((opt) => opt.value === status)) {
+        statusFilterEl.value = status;
+      }
+      if (
+        sort && SORT_EXTRACTORS[sort]
+        && (dir === "asc" || dir === "desc")
+      ) {
+        currentSort = { key: sort, dir };
+        updateSortHeaders();
+      }
+    }
+
+    applyUrlState();
+
+    // ---- Live freshness + auto-refresh ----------------------------------
+    //
+    // The dashboard polls /api/watchlist on a fixed interval and shows a
+    // "Updated Xs ago" tick beside a pulsing dot. The poll pauses when the
+    // tab is hidden (avoids hammering Helius/DexScreener for nothing) and
+    // resumes immediately when it becomes visible again.
+
+    const WATCHLIST_REFRESH_MS = 20_000;
+    let lastWatchlistAt = null;
+    let watchlistTimer = null;
+    let watchlistInFlight = false;
+    let firstWatchlistLoad = true;
+    let freshnessTimer = null;
+
+    function setFreshness(text, dotState = "live") {
+      freshnessEl.textContent = text;
+      liveDotEl.className = `live-dot ${dotState}`;
+      const titles = {
+        live: "Live updates: on",
+        paused: "Live updates paused (tab hidden)",
+        error: "Last update failed",
+      };
+      liveDotEl.title = titles[dotState] || "";
+    }
+
+    function tickFreshness() {
+      if (!lastWatchlistAt) return;
+      const seconds = Math.max(0, Math.floor((Date.now() - lastWatchlistAt) / 1000));
+      const label = seconds < 60
+        ? `Updated ${seconds}s ago`
+        : seconds < 3600
+          ? `Updated ${Math.floor(seconds / 60)}m ago`
+          : `Updated ${Math.floor(seconds / 3600)}h ago`;
+      const state = document.hidden ? "paused" : "live";
+      setFreshness(label, state);
+    }
+
+    function scheduleNextRefresh() {
+      if (watchlistTimer) clearTimeout(watchlistTimer);
+      if (document.hidden) return;
+      watchlistTimer = setTimeout(loadDashboard, WATCHLIST_REFRESH_MS);
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        if (watchlistTimer) clearTimeout(watchlistTimer);
+        watchlistTimer = null;
+        setFreshness("Paused", "paused");
+        return;
+      }
+      // Returning to the tab: refresh immediately.
+      tickFreshness();
+      loadDashboard();
+    });
+
     async function loadDashboard() {
+      if (watchlistInFlight) return;          // never overlap requests
+      if (watchlistTimer) clearTimeout(watchlistTimer);
+      watchlistInFlight = true;
+
+      // Show skeleton placeholders only when the table is empty (first
+      // load, or a previous error wiped it). Auto-refreshes keep the
+      // existing rows visible so they don't visually thrash.
+      if (firstWatchlistLoad) {
+        renderSkeletonRows();
+      }
+
       const status = statusFilterEl.value;
       const statusParam = status ? `&status=${encodeURIComponent(status)}` : "";
-      statusNoteEl.textContent = "Loading...";
       try {
         const [summaryResponse, watchlistResponse] = await Promise.all([
           fetch("/api/summary"),
@@ -2617,10 +2956,15 @@
         }
         renderSummary(summary);
         renderDashboardRows(rows, allRows);
-        statusNoteEl.textContent = `${rows.length} decisions`;
+        firstWatchlistLoad = false;
+        lastWatchlistAt = Date.now();
+        tickFreshness();
       } catch (error) {
-        statusNoteEl.textContent = "Could not load data";
+        setFreshness("Update failed", "error");
         rowsEl.innerHTML = `<tr><td class="empty" colspan="7">Dashboard request failed.</td></tr>`;
+      } finally {
+        watchlistInFlight = false;
+        scheduleNextRefresh();
       }
     }
 
@@ -2721,16 +3065,23 @@
     refreshButtonEl.addEventListener("click", loadDashboard);
     scanButtonEl.addEventListener("click", startScan);
     manualAnalyzeFormEl.addEventListener("submit", startManualAnalyze);
-    statusFilterEl.addEventListener("change", loadDashboard);
+    statusFilterEl.addEventListener("change", () => {
+      writeUrlState();
+      loadDashboard();
+    });
     document.addEventListener("click", (event) => {
       const button = event.target.closest(".copy-button");
       if (!button) return;
       copyAddress(button.dataset.address || "", button);
     });
 
+    setFreshness("Loading...", "paused");
     loadDashboard();
     loadScanStatus();
     window.setInterval(loadScanStatus, 3000);
+    // 1 Hz tick for the "Updated Xs ago" label so it stays current
+    // without re-fetching anything.
+    freshnessTimer = window.setInterval(tickFreshness, 1000);
   </script>
 </body>
 </html>
