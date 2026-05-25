@@ -2229,6 +2229,134 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* Phone layout: turn the watchlist table into a stack of cards.
+       Each <tr> becomes a card; <td>s wrap with their column label. */
+    @media (max-width: 720px) {
+      .table-wrap {
+        overflow: visible;
+      }
+
+      .table-wrap table,
+      .table-wrap thead,
+      .table-wrap tbody,
+      .table-wrap tr,
+      .table-wrap td {
+        display: block;
+        width: 100%;
+      }
+
+      .table-wrap thead {
+        /* Visually hide column headers; the data-label pseudo-elements
+           below take their place inside each card. */
+        position: absolute;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        border: 0;
+        white-space: nowrap;
+      }
+
+      .table-wrap colgroup {
+        display: none;
+      }
+
+      tbody tr {
+        margin-bottom: 12px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, .03);
+        min-height: 0;
+      }
+
+      tbody tr.kbd-active {
+        box-shadow: inset 3px 0 0 var(--accent), 0 4px 12px rgba(0, 0, 0, .3);
+      }
+
+      tbody td {
+        padding: 6px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      tbody td:first-child {
+        padding-top: 0;
+      }
+
+      tbody td:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      /* Inject column labels for non-token cells using data-label
+         attributes set in JS. The token cell stays unlabeled because
+         it already shows the symbol prominently. */
+      tbody td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 4px;
+        color: rgba(248, 247, 255, .42);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      tbody td.token[data-label]::before {
+        /* Token cell already shows symbol+logo prominently; no label needed. */
+        content: none;
+      }
+
+      .row-toolbar {
+        position: static;
+        transform: none;
+        opacity: 1;
+        pointer-events: auto;
+        margin-top: 10px;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        backdrop-filter: none;
+      }
+
+      /* Density toggle is meaningless on phones (cards already small) */
+      .density-toggle {
+        display: none;
+      }
+
+      /* Filter chips wrap naturally; just give them a bit more breathing
+         room when they stack. */
+      .filter-chip-group {
+        gap: 8px;
+      }
+    }
+
+    /* Sidebar collapse on tablet -- gives the table room without losing
+       access to filters. Toggled by JS. */
+    .sidebar-toggle {
+      display: none;
+    }
+
+    @media (max-width: 1180px) {
+      .sidebar-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar {
+        display: none;
+      }
+    }
   </style>
 </head>
 <body>
@@ -2288,6 +2416,14 @@
 
     <main class="dashboard-main">
       <section class="topbar">
+        <button
+          id="sidebarToggle"
+          type="button"
+          class="secondary-button sidebar-toggle"
+          aria-label="Toggle sidebar"
+          aria-expanded="true"
+          title="Toggle sidebar"
+        >☰</button>
         <div class="top-title">
           <h1>Top Token Opportunities</h1>
           <div class="subtitle">Fresh decisions, safety signals, and wallet intelligence.</div>
@@ -3259,13 +3395,13 @@
       }
       rowsEl.innerHTML = rows.map((row) => `
         <tr>
-          <td class="token">${renderTokenIdentity(row)}</td>
-          <td>${formatTableOpportunity(row)}</td>
-          <td>${formatTableSafety(row)}</td>
-          <td>${formatTableLiquidity(row)}</td>
-          <td>${formatTableWallet(row)}</td>
-          <td>${formatTableDecision(row)}</td>
-          <td>
+          <td class="token" data-label="Token">${renderTokenIdentity(row)}</td>
+          <td data-label="Opportunity">${formatTableOpportunity(row)}</td>
+          <td data-label="Safety">${formatTableSafety(row)}</td>
+          <td data-label="Liquidity">${formatTableLiquidity(row)}</td>
+          <td data-label="Wallet Signals">${formatTableWallet(row)}</td>
+          <td data-label="Decision">${formatTableDecision(row)}</td>
+          <td data-label="Updated">
             <div class="table-cell"><div class="cell-sub">${escapeHtml(formatShortDate(row.created_at))}</div></div>
             ${rowToolbar(row)}
           </td>
@@ -4404,6 +4540,14 @@
     const kbdHelpButtonEl = document.querySelector("#kbdHelpButton");
     if (kbdHelpButtonEl) {
       kbdHelpButtonEl.addEventListener("click", () => toggleCheatsheet());
+    }
+    const sidebarToggleEl = document.querySelector("#sidebarToggle");
+    const appShellEl = document.querySelector(".app-shell");
+    if (sidebarToggleEl && appShellEl) {
+      sidebarToggleEl.addEventListener("click", () => {
+        const collapsed = appShellEl.classList.toggle("sidebar-collapsed");
+        sidebarToggleEl.setAttribute("aria-expanded", String(!collapsed));
+      });
     }
     document.addEventListener("click", (event) => {
       const button = event.target.closest(".copy-button");
