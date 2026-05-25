@@ -1466,6 +1466,99 @@
       .decision-drawer { display: none; }
     }
 
+    /* Keyboard navigation -------------------------------------------- */
+
+    tbody tr.kbd-active {
+      background: rgba(187, 167, 255, .12);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    .kbd-cheatsheet {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(7, 7, 17, .68);
+      backdrop-filter: blur(6px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .14s ease;
+      z-index: 60;
+    }
+
+    .kbd-cheatsheet.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .kbd-cheatsheet-card {
+      max-width: 380px;
+      width: 100%;
+      padding: 22px 24px;
+      border: 1px solid var(--line-strong);
+      border-radius: 14px;
+      background: rgba(15, 16, 29, .96);
+      box-shadow: 0 28px 70px rgba(0, 0, 0, .54);
+    }
+
+    .kbd-cheatsheet-title {
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: rgba(248, 247, 255, .6);
+      margin-bottom: 12px;
+    }
+
+    .kbd-cheatsheet dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px 16px;
+      margin: 0;
+    }
+
+    .kbd-cheatsheet dt {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .kbd-cheatsheet dd {
+      margin: 0;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .kbd-cheatsheet kbd,
+    body kbd {
+      display: inline-block;
+      min-width: 22px;
+      padding: 2px 6px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, .07);
+      color: var(--text);
+      font: 600 11px ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      text-align: center;
+      line-height: 1.2;
+    }
+
+    .kbd-cheatsheet-hint {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .kbd-help-button {
+      width: 36px;
+      padding: 0;
+      font-weight: 900;
+      font-size: 16px;
+      line-height: 1;
+    }
+
     .token {
       min-width: 220px;
     }
@@ -2143,6 +2236,13 @@
           </form>
           <button id="scanButton" type="button">Run Scan</button>
           <button id="refreshButton" type="button" class="secondary-button">Refresh</button>
+          <button
+            id="kbdHelpButton"
+            type="button"
+            class="secondary-button kbd-help-button"
+            title="Keyboard shortcuts (?)"
+            aria-label="Show keyboard shortcuts"
+          >?</button>
           <div class="status-note" id="statusNote" aria-live="polite">
             <span class="live-dot" id="liveDot" title="Live updates"></span>
             <span class="freshness" id="freshness">Loading...</span>
@@ -3414,6 +3514,195 @@
       }
     });
 
+    // ---- Keyboard navigation -------------------------------------------
+    //
+    // Power-user shortcuts. All keys are ignored when the user is typing
+    // in an input/textarea/contenteditable, so they never fight with the
+    // manual-analyze field or the URL bar.
+    //
+    //   /                focus the manual-analyze input
+    //   j or ArrowDown   highlight next row
+    //   k or ArrowUp     highlight previous row
+    //   Enter            open the highlighted row's token detail
+    //   c                copy the highlighted token's address
+    //   ?                toggle the shortcuts cheat-sheet overlay
+    //   Esc              close drawer / overlay / blur input
+
+    let highlightedIndex = -1;
+
+    function isTypingTarget(target) {
+      if (!target) return false;
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+      if (target.isContentEditable) return true;
+      return false;
+    }
+
+    function visibleRows() {
+      return Array.from(rowsEl.querySelectorAll("tr")).filter(
+        (tr) => !tr.classList.contains("skeleton-row") && !tr.querySelector(".empty"),
+      );
+    }
+
+    function setHighlight(index) {
+      const trs = visibleRows();
+      if (!trs.length) {
+        highlightedIndex = -1;
+        return;
+      }
+      // Wrap-around so j past the bottom goes to the top, k past the
+      // top goes to the bottom. Feels like vim, terminal mail clients,
+      // gmail.
+      const next = ((index % trs.length) + trs.length) % trs.length;
+      trs.forEach((tr, i) => tr.classList.toggle("kbd-active", i === next));
+      highlightedIndex = next;
+      const tr = trs[next];
+      // scrollIntoView with block:nearest avoids jumpy scrolling when
+      // the highlighted row is already visible.
+      tr.scrollIntoView({ block: "nearest", behavior: "smooth" });
+
+      // Open the decision drawer for the highlighted row -- gives
+      // keyboard users the same context that mouse hover provides.
+      const visible = sortedRows(currentRows);
+      const row = visible[next];
+      if (row) {
+        // Skip the hover delay for keyboard nav; show immediately.
+        if (drawerHoverTimer) clearTimeout(drawerHoverTimer);
+        if (drawerHideTimer) clearTimeout(drawerHideTimer);
+        showDrawer(row);
+      }
+    }
+
+    function clearHighlight() {
+      visibleRows().forEach((tr) => tr.classList.remove("kbd-active"));
+      highlightedIndex = -1;
+    }
+
+    function highlightedRow() {
+      if (highlightedIndex < 0) return null;
+      const visible = sortedRows(currentRows);
+      return visible[highlightedIndex] || null;
+    }
+
+    function openHighlightedRow() {
+      const row = highlightedRow();
+      if (!row) return;
+      const url = tokenDetailUrl(row);
+      window.location.href = url;
+    }
+
+    function copyHighlightedAddress() {
+      const row = highlightedRow();
+      if (!row || !row.token_address) return;
+      // Reuse the existing copy delegate by faking a click on a hidden
+      // copy-button-shaped element; simpler to just use the helper.
+      copyAddress(row.token_address, null);
+    }
+
+    // Cheat-sheet overlay built lazily on first ? press.
+    let cheatsheetEl = null;
+
+    function buildCheatsheet() {
+      const el = document.createElement("div");
+      el.className = "kbd-cheatsheet";
+      el.setAttribute("role", "dialog");
+      el.setAttribute("aria-label", "Keyboard shortcuts");
+      el.innerHTML = `
+        <div class="kbd-cheatsheet-card">
+          <div class="kbd-cheatsheet-title">Keyboard shortcuts</div>
+          <dl>
+            <dt><kbd>/</kbd></dt><dd>Focus manual analyze</dd>
+            <dt><kbd>j</kbd> / <kbd>↓</kbd></dt><dd>Next row</dd>
+            <dt><kbd>k</kbd> / <kbd>↑</kbd></dt><dd>Previous row</dd>
+            <dt><kbd>Enter</kbd></dt><dd>Open token detail</dd>
+            <dt><kbd>c</kbd></dt><dd>Copy address</dd>
+            <dt><kbd>?</kbd></dt><dd>Toggle this overlay</dd>
+            <dt><kbd>Esc</kbd></dt><dd>Close drawer / overlay</dd>
+          </dl>
+          <div class="kbd-cheatsheet-hint">Press <kbd>Esc</kbd> or <kbd>?</kbd> to close.</div>
+        </div>
+      `;
+      el.addEventListener("click", (event) => {
+        if (event.target === el) toggleCheatsheet(false);
+      });
+      document.body.appendChild(el);
+      return el;
+    }
+
+    function toggleCheatsheet(force) {
+      if (!cheatsheetEl) cheatsheetEl = buildCheatsheet();
+      const next = typeof force === "boolean" ? force : !cheatsheetEl.classList.contains("is-visible");
+      cheatsheetEl.classList.toggle("is-visible", next);
+    }
+
+    document.addEventListener("keydown", (event) => {
+      // Inputs always own their keystrokes.
+      if (isTypingTarget(event.target)) {
+        if (event.key === "Escape") event.target.blur();
+        return;
+      }
+      // Don't hijack browser shortcuts.
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      switch (event.key) {
+        case "/":
+          event.preventDefault();
+          if (manualTokenInputEl) {
+            manualTokenInputEl.focus();
+            manualTokenInputEl.select();
+          }
+          break;
+        case "j":
+        case "ArrowDown":
+          event.preventDefault();
+          setHighlight(highlightedIndex + 1);
+          break;
+        case "k":
+        case "ArrowUp":
+          event.preventDefault();
+          setHighlight(highlightedIndex < 0 ? 0 : highlightedIndex - 1);
+          break;
+        case "Enter":
+          if (highlightedIndex >= 0) {
+            event.preventDefault();
+            openHighlightedRow();
+          }
+          break;
+        case "c":
+          if (highlightedIndex >= 0) {
+            event.preventDefault();
+            copyHighlightedAddress();
+          }
+          break;
+        case "?":
+          event.preventDefault();
+          toggleCheatsheet();
+          break;
+        case "Escape":
+          if (cheatsheetEl && cheatsheetEl.classList.contains("is-visible")) {
+            toggleCheatsheet(false);
+            event.preventDefault();
+          } else if (highlightedIndex >= 0) {
+            clearHighlight();
+            event.preventDefault();
+          }
+          break;
+      }
+    });
+
+    // Keep highlight valid when rows re-render (auto-refresh / sort / filter).
+    // If the previously-highlighted row is no longer present, clear.
+    const tableObserver = new MutationObserver(() => {
+      if (highlightedIndex < 0) return;
+      const trs = visibleRows();
+      if (!trs.length || highlightedIndex >= trs.length) {
+        clearHighlight();
+      } else {
+        trs.forEach((tr, i) => tr.classList.toggle("kbd-active", i === highlightedIndex));
+      }
+    });
+    tableObserver.observe(rowsEl, { childList: true });
+
     // ---- Status filter chips --------------------------------------------
     //
     // The decision filter is a multi-select chip group. Internal state is a
@@ -3869,6 +4158,10 @@
     refreshButtonEl.addEventListener("click", loadDashboard);
     scanButtonEl.addEventListener("click", startScan);
     manualAnalyzeFormEl.addEventListener("submit", startManualAnalyze);
+    const kbdHelpButtonEl = document.querySelector("#kbdHelpButton");
+    if (kbdHelpButtonEl) {
+      kbdHelpButtonEl.addEventListener("click", () => toggleCheatsheet());
+    }
     document.addEventListener("click", (event) => {
       const button = event.target.closest(".copy-button");
       if (!button) return;
