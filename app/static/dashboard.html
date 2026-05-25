@@ -1020,6 +1020,77 @@
       color: var(--accent);
     }
 
+    /* Per-row hover toolbar -- copy address, Solscan, DexScreener.
+       Absolute-positioned at the right edge of the row, sliding in on
+       hover. Stays visible when any button inside is focused so
+       keyboard users can reach it. */
+    tbody tr {
+      position: relative;
+    }
+
+    .row-toolbar {
+      position: absolute;
+      top: 50%;
+      right: 14px;
+      transform: translateY(-50%) translateX(8px);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      background: rgba(15, 16, 29, .92);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 12px 26px rgba(0, 0, 0, .32);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .14s ease, transform .14s ease;
+      z-index: 2;
+    }
+
+    tbody tr:hover .row-toolbar,
+    tbody tr:focus-within .row-toolbar {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(-50%) translateX(0);
+    }
+
+    .row-toolbar a,
+    .row-toolbar button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .06);
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 700;
+      box-shadow: none;
+      cursor: pointer;
+    }
+
+    .row-toolbar a:hover,
+    .row-toolbar button:hover {
+      border-color: rgba(187, 167, 255, .55);
+      background: rgba(255, 255, 255, .12);
+      transform: none;
+    }
+
+    .row-toolbar .copy-button {
+      width: 32px;
+      height: 32px;
+    }
+
+    .row-toolbar .copy-button.copied {
+      border-color: rgba(94, 234, 212, .55);
+      background: rgba(94, 234, 212, .15);
+      color: #5eead4;
+    }
+
     /* Skeleton loaders -- shown only on the first paint while the
        initial /api/watchlist call is in flight. Auto-refresh keeps the
        currently-rendered rows in place so skeletons never replace real
@@ -1065,6 +1136,65 @@
 
     tr:last-child td {
       border-bottom: none;
+    }
+
+    /* Density: compact mode shrinks row height and inner padding so
+       traders can see ~30 tokens at once instead of ~12. Toggled by
+       <body class="density-compact"> from JS (localStorage-backed). */
+    body.density-compact tbody tr {
+      min-height: 48px;
+    }
+
+    body.density-compact tbody td {
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+
+    body.density-compact .table-cell {
+      min-height: 32px;
+      gap: 3px;
+    }
+
+    body.density-compact .token {
+      min-width: 200px;
+    }
+
+    body.density-compact .token-logo {
+      width: 28px;
+      height: 28px;
+    }
+
+    body.density-compact .movement-strip,
+    body.density-compact .address-line {
+      display: none;
+    }
+
+    body.density-compact .skeleton-row td {
+      padding: 8px 16px;
+    }
+
+    body.density-compact .skeleton-row .skeleton-block + .skeleton-block {
+      margin-top: 4px;
+    }
+
+    .table-tools {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .density-toggle {
+      height: 30px;
+      padding: 0 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+    }
+
+    .density-toggle[aria-pressed="true"] {
+      border-color: rgba(187, 167, 255, .55);
+      background: rgba(187, 167, 255, .15);
+      color: #d8ceff;
     }
 
     .token {
@@ -1792,7 +1922,16 @@
             <div class="table-title">Decision Stream</div>
             <div class="table-note">Latest analyzed tokens remain first. Open a token for the full decision tree.</div>
           </div>
-          <div class="table-note" id="tableCount">0 tokens</div>
+          <div class="table-tools">
+            <button
+              type="button"
+              id="densityToggle"
+              class="secondary-button density-toggle"
+              aria-pressed="false"
+              title="Toggle compact / comfy density"
+            >Compact</button>
+            <div class="table-note" id="tableCount">0 tokens</div>
+          </div>
         </div>
         <div class="table-wrap">
           <table>
@@ -2623,6 +2762,41 @@
       tableCountEl.textContent = "Loading…";
     }
 
+    function rowToolbar(row) {
+      const address = row.token_address || "";
+      if (!address) return "";
+      const safeAddress = escapeHtml(address);
+      // Solana mainnet links. We don't open a popup ourselves; just
+      // hyperlinks that respect cmd/middle-click to open in a new tab.
+      const solscan = `https://solscan.io/token/${safeAddress}`;
+      const dexscreener = `https://dexscreener.com/solana/${safeAddress}`;
+      return `
+        <div class="row-toolbar" role="group" aria-label="Quick actions">
+          <button
+            class="copy-button"
+            type="button"
+            aria-label="Copy token address"
+            title="Copy token address"
+            data-address="${safeAddress}"
+          >${copyIcon()}</button>
+          <a
+            href="${solscan}"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open on Solscan"
+            title="Open on Solscan"
+          >SOL</a>
+          <a
+            href="${dexscreener}"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open on DexScreener"
+            title="Open on DexScreener"
+          >DEX</a>
+        </div>
+      `;
+    }
+
     function renderRows(rows) {
       tableCountEl.textContent = `${rows.length} tokens`;
       if (!rows.length) {
@@ -2637,7 +2811,10 @@
           <td>${formatTableLiquidity(row)}</td>
           <td>${formatTableWallet(row)}</td>
           <td>${formatTableDecision(row)}</td>
-          <td><div class="table-cell"><div class="cell-sub">${escapeHtml(formatShortDate(row.created_at))}</div></div></td>
+          <td>
+            <div class="table-cell"><div class="cell-sub">${escapeHtml(formatShortDate(row.created_at))}</div></div>
+            ${rowToolbar(row)}
+          </td>
         </tr>
       `).join("");
     }
@@ -2718,6 +2895,50 @@
       loadValueEl.textContent = `${meter.load}%`;
       loadStatusEl.textContent = meter.label;
       loadHintEl.textContent = meter.hint;
+    }
+
+    // ---- Density toggle -------------------------------------------------
+    //
+    // Compact mode shrinks rows ~40% so power users can scan more tokens
+    // at once. Preference persists in localStorage. Pure CSS swap; no
+    // re-render required.
+
+    const DENSITY_KEY = "memeco.dashboard.density";
+    const densityToggleEl = document.querySelector("#densityToggle");
+
+    function applyDensity(mode) {
+      const compact = mode === "compact";
+      document.body.classList.toggle("density-compact", compact);
+      if (densityToggleEl) {
+        densityToggleEl.setAttribute("aria-pressed", String(compact));
+        densityToggleEl.textContent = compact ? "Comfy" : "Compact";
+      }
+    }
+
+    function loadDensity() {
+      try {
+        return localStorage.getItem(DENSITY_KEY) || "comfy";
+      } catch (error) {
+        return "comfy";
+      }
+    }
+
+    function saveDensity(mode) {
+      try {
+        localStorage.setItem(DENSITY_KEY, mode);
+      } catch (error) {
+        // localStorage unavailable -- silent.
+      }
+    }
+
+    applyDensity(loadDensity());
+
+    if (densityToggleEl) {
+      densityToggleEl.addEventListener("click", () => {
+        const next = loadDensity() === "compact" ? "comfy" : "compact";
+        saveDensity(next);
+        applyDensity(next);
+      });
     }
 
     // ---- Table sorting --------------------------------------------------
