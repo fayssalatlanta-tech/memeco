@@ -1091,6 +1091,22 @@
       color: #5eead4;
     }
 
+    .row-toolbar .star-button[aria-pressed="true"] {
+      border-color: rgba(255, 209, 102, .55);
+      background: rgba(255, 209, 102, .15);
+      color: var(--wait);
+    }
+
+    /* Inline star marker in the token cell -- always visible for
+       starred rows so users can spot favorites without hovering. */
+    .star-mark {
+      display: inline-block;
+      margin-left: 6px;
+      color: var(--wait);
+      font-size: 13px;
+      vertical-align: -1px;
+    }
+
     /* Skeleton loaders -- shown only on the first paint while the
        initial /api/watchlist call is in flight. Auto-refresh keeps the
        currently-rendered rows in place so skeletons never replace real
@@ -1258,6 +1274,12 @@
       border-color: rgba(255, 91, 110, .55);
       background: rgba(255, 91, 110, .14);
       color: #ff5b6e;
+    }
+
+    .filter-chip.starred[aria-pressed="true"] {
+      border-color: rgba(255, 209, 102, .55);
+      background: rgba(255, 209, 102, .14);
+      color: var(--wait);
     }
 
     /* Decision tree drawer: hover any row to peek the full decision
@@ -2196,6 +2218,7 @@
               aria-label="Filter watchlist by decision status"
             >
               <button type="button" class="filter-chip" data-status="" aria-pressed="true">All decisions</button>
+              <button type="button" class="filter-chip starred" data-filter="starred" aria-pressed="false" title="Show only locally-starred tokens">★ Starred</button>
               <button type="button" class="filter-chip pass" data-status="WATCHLIST_PASS" aria-pressed="false">Pass</button>
               <button type="button" class="filter-chip pass" data-status="WATCHLIST_PASS_HIGH_RISK" aria-pressed="false">Pass · High Risk</button>
               <button type="button" class="filter-chip review" data-status="WATCHLIST_REVIEW" aria-pressed="false">Review</button>
@@ -2948,12 +2971,15 @@
     }
 
     function renderTokenIdentity(row, withName = true) {
+      const starHtml = isStarred(row.token_address)
+        ? `<span class="star-mark" aria-label="Starred">★</span>`
+        : "";
       return `
         <div class="token-wrap">
           ${tokenLogo(row)}
           <div class="token-meta">
             <div class="symbol">
-              <a class="symbol-link" href="${tokenDetailUrl(row)}" title="Open token details">${escapeHtml(row.symbol || "Unknown")}</a>
+              <a class="symbol-link" href="${tokenDetailUrl(row)}" title="Open token details">${escapeHtml(row.symbol || "Unknown")}</a>${starHtml}
             </div>
             <div class="token-name" title="${escapeHtml(row.pair_created_at || "")}">${escapeHtml(formatDexEntryTime(row))}</div>
             ${withName ? `<div class="token-name">${escapeHtml(row.name || "")}</div>` : ""}
@@ -3151,6 +3177,7 @@
       const dexscreener = `https://dexscreener.com/solana/${safeAddress}`;
       return `
         <div class="row-toolbar" role="group" aria-label="Quick actions">
+          ${starButton(address)}
           <button
             class="copy-button"
             type="button"
@@ -3205,7 +3232,11 @@
       sideRiskCountEl.textContent = String(risks.length);
       renderHero(allRows);
       renderOpportunityCards(allRows);
-      currentRows = rows;
+      // Local starred filter sits on top of the server-side status filter.
+      const filtered = starredOnly
+        ? rows.filter((row) => isStarred(row.token_address))
+        : rows;
+      currentRows = filtered;
       renderRows(sortedRows(currentRows));
     }
 
@@ -3275,6 +3306,95 @@
       loadStatusEl.textContent = meter.label;
       loadHintEl.textContent = meter.hint;
     }
+
+    // ---- Starred tokens (local) -----------------------------------------
+    //
+    // Persisted in localStorage. Pure client-side concern -- no backend
+    // change. Star toggles live in the row toolbar; a "Starred" filter
+    // chip narrows the table to favorites only.
+
+    const STARRED_KEY = "memeco.starred";
+    const starred = new Set();
+
+    function loadStarred() {
+      try {
+        const raw = localStorage.getItem(STARRED_KEY);
+        if (!raw) return;
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          list.forEach((addr) => {
+            if (typeof addr === "string" && addr) starred.add(addr);
+          });
+        }
+      } catch (error) {
+        // localStorage unavailable / corrupted -- silent.
+      }
+    }
+
+    function saveStarred() {
+      try {
+        localStorage.setItem(STARRED_KEY, JSON.stringify(Array.from(starred)));
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    function isStarred(address) {
+      return Boolean(address) && starred.has(address);
+    }
+
+    function toggleStar(address) {
+      if (!address) return;
+      if (starred.has(address)) {
+        starred.delete(address);
+      } else {
+        starred.add(address);
+      }
+      saveStarred();
+      // Re-render so star markers, toolbar buttons, and the optional
+      // "Starred" filter all reflect the change.
+      renderRows(sortedRows(currentRows));
+    }
+
+    // Cross-tab sync: another tab toggling a star updates this tab too.
+    window.addEventListener("storage", (event) => {
+      if (event.key !== STARRED_KEY) return;
+      starred.clear();
+      try {
+        const list = JSON.parse(event.newValue || "[]");
+        if (Array.isArray(list)) list.forEach((a) => typeof a === "string" && starred.add(a));
+      } catch (error) {
+        // ignore
+      }
+      renderRows(sortedRows(currentRows));
+    });
+
+    loadStarred();
+
+    function starButton(address) {
+      const safe = escapeHtml(address || "");
+      const pressed = isStarred(address);
+      return `
+        <button
+          class="star-button"
+          type="button"
+          data-star-address="${safe}"
+          aria-pressed="${pressed}"
+          aria-label="${pressed ? "Unstar token" : "Star token"}"
+          title="${pressed ? "Unstar token" : "Star token (saves locally)"}"
+        >${pressed ? "★" : "☆"}</button>
+      `;
+    }
+
+    // Click delegate for star buttons. Lives at document level so it
+    // works for buttons rendered later (auto-refresh).
+    document.addEventListener("click", (event) => {
+      const btn = event.target.closest(".star-button");
+      if (!btn) return;
+      event.preventDefault();
+      event.stopPropagation();
+      toggleStar(btn.dataset.starAddress || "");
+    });
 
     // ---- Decision tree drawer -------------------------------------------
     //
@@ -3712,6 +3832,7 @@
 
     const statusFilterEl = document.querySelector("#statusFilter");
     const activeStatuses = new Set();
+    let starredOnly = false;
 
     function getStatusParam() {
       // Comma-separated for the API: "A,B,C". Empty when nothing selected.
@@ -3720,12 +3841,18 @@
 
     function renderStatusChips() {
       const chips = statusFilterEl.querySelectorAll(".filter-chip");
-      const allEmpty = activeStatuses.size === 0;
+      const allEmpty = activeStatuses.size === 0 && !starredOnly;
       chips.forEach((chip) => {
         const value = chip.dataset.status || "";
-        const pressed = value
-          ? activeStatuses.has(value)
-          : allEmpty;
+        const localFilter = chip.dataset.filter || "";
+        let pressed;
+        if (localFilter === "starred") {
+          pressed = starredOnly;
+        } else if (value) {
+          pressed = activeStatuses.has(value);
+        } else {
+          pressed = allEmpty;
+        }
         chip.setAttribute("aria-pressed", String(pressed));
       });
     }
@@ -3738,10 +3865,13 @@
       renderStatusChips();
     }
 
-    function toggleStatus(value) {
-      if (!value) {
-        // "All decisions" chip: clear everything.
+    function toggleStatus(value, localFilter) {
+      if (localFilter === "starred") {
+        starredOnly = !starredOnly;
+      } else if (!value) {
+        // "All decisions" chip: clear everything (status + starred).
         activeStatuses.clear();
+        starredOnly = false;
       } else if (activeStatuses.has(value)) {
         activeStatuses.delete(value);
       } else {
@@ -3755,7 +3885,7 @@
     statusFilterEl.addEventListener("click", (event) => {
       const chip = event.target.closest(".filter-chip");
       if (!chip || !statusFilterEl.contains(chip)) return;
-      toggleStatus(chip.dataset.status || "");
+      toggleStatus(chip.dataset.status || "", chip.dataset.filter || "");
     });
 
     // ---- Density toggle -------------------------------------------------
@@ -3909,9 +4039,10 @@
           status: params.get("status") || "",
           sort: params.get("sort") || "",
           dir: params.get("dir") || "",
+          starred: params.get("starred") === "1",
         };
       } catch (error) {
-        return { status: "", sort: "", dir: "" };
+        return { status: "", sort: "", dir: "", starred: false };
       }
     }
 
@@ -3927,6 +4058,7 @@
           params.delete("sort");
           params.delete("dir");
         }
+        if (starredOnly) params.set("starred", "1"); else params.delete("starred");
         const query = params.toString();
         const next = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
         window.history.replaceState(null, "", next);
@@ -3936,11 +4068,8 @@
     }
 
     function applyUrlState() {
-      const { status, sort, dir } = readUrlState();
+      const { status, sort, dir, starred } = readUrlState();
       if (status) {
-        // Accept comma-separated list ("A,B,C") and the legacy single
-        // value form ("A"). Unknown statuses are silently dropped so a
-        // stale bookmark never breaks the page.
         const known = new Set(
           Array.from(statusFilterEl.querySelectorAll(".filter-chip"))
             .map((chip) => chip.dataset.status || "")
@@ -3951,6 +4080,8 @@
       } else {
         setActiveStatuses([]);
       }
+      starredOnly = Boolean(starred);
+      renderStatusChips();
       if (
         sort && SORT_EXTRACTORS[sort]
         && (dir === "asc" || dir === "desc")
