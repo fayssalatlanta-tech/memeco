@@ -581,20 +581,23 @@
     let state = { trades: [], signals: [], wallet: null, stats: {} };
     let activeTab = "trades";
 
-    function escapeHtml(value) {
-      return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
+    // Shared formatting helpers come from /static/shared/utils.js.
+    // The <script src="..."> tag in <head> is synchronous (no defer),
+    // so MemecoUtils is guaranteed to be defined here.
+    const {
+      escapeHtml,
+      numberOrNull,
+      shortAddress,
+      formatDate,
+    } = window.MemecoUtils;
 
-    function num(value) {
-      const number = Number(value);
-      return Number.isFinite(number) ? number : null;
-    }
+    // Aliases preserving local call signatures used throughout this page.
+    const num = numberOrNull;
+    const dateText = formatDate;
 
+    // Page-local formatters — fmt/sol/pct/usd intentionally diverge from
+    // MemecoUtils.formatNumber/formatMoney (no minimumFractionDigits, custom
+    // suffixes, signed pct), so they stay here.
     function fmt(value, digits = 2) {
       const number = num(value);
       if (number === null) return "N/A";
@@ -621,21 +624,9 @@
       return `$${fmt(number, 2)}`;
     }
 
-    function shortAddress(value) {
-      if (!value) return "N/A";
-      return `${value.slice(0, 6)}...${value.slice(-6)}`;
-    }
-
     function initials(value) {
       if (!value) return "--";
       return `${value.slice(0, 2)}${value.slice(-2)}`.toUpperCase();
-    }
-
-    function dateText(value) {
-      if (!value) return "N/A";
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return "N/A";
-      return date.toLocaleString();
     }
 
     function tokenLogo(row) {

@@ -1745,60 +1745,28 @@
     const manualTokenInputEl = document.querySelector("#manualTokenInput");
     const manualAnalyzeButtonEl = document.querySelector("#manualAnalyzeButton");
 
-    function escapeHtml(value) {
-      return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
+    // Shared formatting helpers come from /static/shared/utils.js.
+    // The <script src="..."> tag in <head> is synchronous (no defer),
+    // so MemecoUtils is guaranteed to be defined here.
+    const {
+      escapeHtml,
+      parseDetails,
+      asNumber,
+      formatDate,
+      formatAgeMinutes,
+      formatPrice,
+    } = window.MemecoUtils;
 
-    function parseDetails(value) {
-      if (!value) return {};
-      if (typeof value === "object") return value;
-      try {
-        return JSON.parse(value);
-      } catch (error) {
-        return {};
-      }
-    }
-
-    function asNumber(value, fallback = 0) {
-      const number = Number(value);
-      return Number.isFinite(number) ? number : fallback;
-    }
-
-    function formatDate(value) {
-      if (!value) return "N/A";
-      return new Date(value).toLocaleString();
-    }
-
-    function formatAgeMinutes(value) {
-      if (value === null || value === undefined || value === "") return "N/A";
-      const minutes = Number(value);
-      if (!Number.isFinite(minutes)) return "N/A";
-      if (minutes < 60) return `${Math.max(0, Math.round(minutes))}m`;
-      const hours = minutes / 60;
-      if (hours < 48) return `${hours.toFixed(1)}h`;
-      return `${(hours / 24).toFixed(1)}d`;
-    }
-
+    // Page-local formatters intentionally diverge from MemecoUtils:
+    //   formatMoney   — uses 0/1/2 decimals (vs shared 2/2/2) for tighter rows.
+    //   formatPercent — returns "unknown" (not "N/A") and forces 2 decimals
+    //                   even for 0%, matching this dashboard's existing UI.
     function formatMoney(value) {
       const number = Number(value);
       if (!Number.isFinite(number)) return "N/A";
       if (number >= 1_000_000) return `$${(number / 1_000_000).toFixed(2)}M`;
       if (number >= 1_000) return `$${(number / 1_000).toFixed(1)}K`;
       return `$${number.toFixed(0)}`;
-    }
-
-    function formatPrice(value) {
-      const number = Number(value);
-      if (!Number.isFinite(number)) return "N/A";
-      if (number === 0) return "$0";
-      if (number < 0.000001) return `$${number.toExponential(2)}`;
-      if (number < 0.01) return `$${number.toPrecision(4)}`;
-      return `$${number.toLocaleString(undefined, { maximumFractionDigits: 6 })}`;
     }
 
     function formatLiquidityValue(row, value) {
