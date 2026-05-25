@@ -1260,6 +1260,212 @@
       color: #ff5b6e;
     }
 
+    /* Decision tree drawer: hover any row to peek the full decision
+       tree without leaving the dashboard. The drawer is fixed on the
+       right edge and slides in from there; pin it with the pin button
+       to keep it visible across other hovers. */
+    .decision-drawer {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      width: 380px;
+      max-width: calc(100vw - 36px);
+      max-height: calc(100vh - 36px);
+      padding: 18px;
+      border: 1px solid var(--line-strong);
+      border-radius: 14px;
+      background: rgba(15, 16, 29, .96);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 28px 70px rgba(0, 0, 0, .54);
+      color: var(--text);
+      transform: translateX(28px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+      z-index: 50;
+      overflow: auto;
+    }
+
+    .decision-drawer.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0);
+    }
+
+    .decision-drawer header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .decision-drawer .drawer-title {
+      font-size: 13px;
+      font-weight: 850;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: rgba(248, 247, 255, .58);
+    }
+
+    .decision-drawer .drawer-symbol {
+      margin-top: 2px;
+      font-size: 18px;
+      font-weight: 850;
+      color: var(--text);
+    }
+
+    .decision-drawer .drawer-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .decision-drawer .drawer-controls button {
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border-radius: 8px;
+      border-color: var(--line);
+      background: rgba(255, 255, 255, .06);
+      color: var(--text);
+      box-shadow: none;
+      font-weight: 700;
+    }
+
+    .decision-drawer .drawer-controls button:hover {
+      transform: none;
+      background: rgba(255, 255, 255, .12);
+    }
+
+    .decision-drawer .drawer-controls button.pinned {
+      border-color: rgba(187, 167, 255, .55);
+      background: rgba(187, 167, 255, .18);
+      color: #d8ceff;
+    }
+
+    .decision-tree {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .decision-step {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .04);
+    }
+
+    .decision-step .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, .25);
+    }
+
+    .decision-step.pass .dot { background: var(--pass); }
+    .decision-step.warn .dot { background: var(--wait); }
+    .decision-step.fail .dot { background: var(--reject); }
+    .decision-step.unknown .dot { background: var(--review); }
+
+    .decision-step.pass {
+      border-color: rgba(71, 229, 157, .35);
+      background: rgba(71, 229, 157, .08);
+    }
+    .decision-step.warn {
+      border-color: rgba(255, 209, 102, .38);
+      background: rgba(255, 209, 102, .08);
+    }
+    .decision-step.fail {
+      border-color: rgba(255, 91, 110, .38);
+      background: rgba(255, 91, 110, .08);
+    }
+
+    .decision-step .step-name {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: rgba(248, 247, 255, .68);
+    }
+
+    .decision-step .step-detail {
+      margin-top: 2px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .decision-step .step-score {
+      font-size: 11px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .decision-final {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--line-strong);
+      background: rgba(255, 255, 255, .045);
+    }
+
+    .decision-final .label {
+      font-size: 11px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: rgba(248, 247, 255, .55);
+    }
+
+    .decision-final .value {
+      margin-top: 4px;
+      font-size: 16px;
+      font-weight: 850;
+    }
+
+    .decision-final.pass .value { color: var(--pass); }
+    .decision-final.warn .value { color: var(--wait); }
+    .decision-final.fail .value { color: var(--reject); }
+    .decision-final.review .value { color: var(--review); }
+
+    .decision-final .reason {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .decision-drawer .open-detail {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line-strong);
+      background: rgba(187, 167, 255, .14);
+      color: #d8ceff;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+
+    .decision-drawer .open-detail:hover {
+      border-color: rgba(187, 167, 255, .55);
+      background: rgba(187, 167, 255, .22);
+    }
+
+    @media (max-width: 1100px) {
+      /* Drawer steals too much room on small screens. Fall back to
+         click-only via the existing token-detail link. */
+      .decision-drawer { display: none; }
+    }
+
     .token {
       min-width: 220px;
     }
@@ -2030,6 +2236,12 @@
     </main>
   </div>
 
+  <aside
+    id="decisionDrawer"
+    class="decision-drawer"
+    aria-hidden="true"
+    aria-labelledby="drawerSymbol"
+  ></aside>
   <script>
     const summaryEl = document.querySelector("#summary");
     const sideStatsEl = document.querySelector("#sideStats");
@@ -2963,6 +3175,244 @@
       loadStatusEl.textContent = meter.label;
       loadHintEl.textContent = meter.hint;
     }
+
+    // ---- Decision tree drawer -------------------------------------------
+    //
+    // Hovering any watchlist row opens a slide-in drawer on the right with
+    // the full decision tree (Market -> Contract -> Liquidity -> Wallet
+    // -> Cluster -> Manipulation -> Final). The data already lives on the
+    // row -- no extra request. Pin button keeps the drawer visible while
+    // the user hovers other rows.
+
+    const drawerEl = document.querySelector("#decisionDrawer");
+    let drawerHoverTimer = null;
+    let drawerHideTimer = null;
+    let drawerPinned = false;
+    let drawerCurrentRow = null;
+
+    const STAGE_TONE = {
+      pass: "pass",
+      warn: "warn",
+      fail: "fail",
+      unknown: "unknown",
+    };
+
+    function stageToneFromStatus(status, passFlag) {
+      const value = String(status || "").toUpperCase();
+      if (value.includes("DANGER") || value.includes("REJECT") || value.includes("CRITICAL")) {
+        return STAGE_TONE.fail;
+      }
+      if (value.includes("WARNING") || value.includes("HIGH")) return STAGE_TONE.warn;
+      if (value.includes("UNKNOWN") || value.includes("WAIT") || value.includes("REVIEW")) {
+        return STAGE_TONE.unknown;
+      }
+      if (value.includes("PASS") || value.includes("STRONG") || value.includes("MODERATE")) {
+        return STAGE_TONE.pass;
+      }
+      if (passFlag === true) return STAGE_TONE.pass;
+      if (passFlag === false) return STAGE_TONE.fail;
+      return STAGE_TONE.unknown;
+    }
+
+    function decisionFinalTone(row) {
+      const status = String(row.final_watchlist_status || "");
+      if (status === "WATCHLIST_PASS") return "pass";
+      if (status === "WATCHLIST_PASS_HIGH_RISK") return "warn";
+      if (status.startsWith("WATCHLIST_REJECT")) return "fail";
+      if (status === "WATCHLIST_REVIEW") return "review";
+      return "unknown";
+    }
+
+    function renderStep(name, status, detail, score) {
+      const tone = stageToneFromStatus(status);
+      const detailHtml = detail ? `<div class="step-detail">${escapeHtml(detail)}</div>` : "";
+      const scoreHtml = score !== undefined && score !== null
+        ? `<div class="step-score">${escapeHtml(score)}</div>`
+        : `<div class="step-score"></div>`;
+      return `
+        <div class="decision-step ${tone}">
+          <span class="dot" aria-hidden="true"></span>
+          <div>
+            <div class="step-name">${escapeHtml(name)}</div>
+            ${detailHtml}
+          </div>
+          ${scoreHtml}
+        </div>
+      `;
+    }
+
+    function renderDrawer(row) {
+      drawerCurrentRow = row;
+      const details = rowDetails(row);
+      const symbol = row.symbol || row.name || row.token_address || "Token";
+      const finalTone = decisionFinalTone(row);
+      const finalLabel = finalDecisionLabel(row.final_watchlist_status);
+      const finalReason = row.final_watchlist_reason || "";
+
+      const insider = MemecoUtils.numberOrNull(details.insider_probability_score);
+      const insiderLevel = details.insider_probability_level || "";
+      const trapStatus = details.liquidity_trap_status || "";
+      const trapScore = MemecoUtils.numberOrNull(details.liquidity_trap_score);
+      const liquidityUsd = row.liquidity_usd ?? details.liquidity_usd;
+      const tokenLink = tokenDetailUrl(row);
+
+      drawerEl.innerHTML = `
+        <header>
+          <div>
+            <div class="drawer-title">Decision</div>
+            <div class="drawer-symbol" id="drawerSymbol">${escapeHtml(symbol)}</div>
+          </div>
+          <div class="drawer-controls">
+            <button
+              type="button"
+              class="drawer-pin ${drawerPinned ? "pinned" : ""}"
+              aria-pressed="${drawerPinned}"
+              aria-label="${drawerPinned ? "Unpin drawer" : "Pin drawer"}"
+              title="${drawerPinned ? "Unpin drawer" : "Pin drawer"}"
+            >📌</button>
+            <button
+              type="button"
+              class="drawer-close"
+              aria-label="Close drawer"
+              title="Close drawer"
+            >✕</button>
+          </div>
+        </header>
+        <div class="decision-tree">
+          ${renderStep("Market", row.market_filter_status, "", row.market_warning_level || "")}
+          ${renderStep(
+            "Contract",
+            row.contract_risk_status,
+            "",
+            row.risk_score !== null && row.risk_score !== undefined ? `${row.risk_score}/10` : ""
+          )}
+          ${renderStep(
+            "Liquidity",
+            details.liquidity_status,
+            liquidityUsd ? formatMoney(liquidityUsd) : "",
+            ""
+          )}
+          ${renderStep(
+            "Liquidity Trap",
+            trapStatus,
+            "",
+            trapScore !== null ? `${trapScore}/100` : ""
+          )}
+          ${renderStep(
+            "Wallet Concentration",
+            row.wallet_status,
+            "",
+            row.top_holder_percent !== null && row.top_holder_percent !== undefined
+              ? `top ${row.top_holder_percent}%`
+              : ""
+          )}
+          ${renderStep("Cluster", row.cluster_status, "",
+            row.largest_cluster_size ? `${row.largest_cluster_size} wallets` : ""
+          )}
+          ${renderStep("Manipulation", row.manipulation_status, "",
+            row.manipulation_score !== null && row.manipulation_score !== undefined
+              ? `${row.manipulation_score}/10`
+              : ""
+          )}
+          ${renderStep(
+            "Dev Audit",
+            details.dev_audit_status,
+            "",
+            ""
+          )}
+          ${renderStep(
+            "Insider Probability",
+            insiderLevel ? `INSIDER_${insiderLevel}` : "",
+            insider !== null ? `${insider}/100` : "",
+            ""
+          )}
+        </div>
+        <div class="decision-final ${finalTone}">
+          <div class="label">Final decision</div>
+          <div class="value">${escapeHtml(finalLabel)}</div>
+          ${finalReason ? `<div class="reason">${escapeHtml(finalReason)}</div>` : ""}
+        </div>
+        <a class="open-detail" href="${tokenLink}">Open token detail →</a>
+      `;
+    }
+
+    function showDrawer(row) {
+      renderDrawer(row);
+      drawerEl.classList.add("is-visible");
+      drawerEl.setAttribute("aria-hidden", "false");
+    }
+
+    function hideDrawer() {
+      if (drawerPinned) return;
+      drawerEl.classList.remove("is-visible");
+      drawerEl.setAttribute("aria-hidden", "true");
+      drawerCurrentRow = null;
+    }
+
+    function rowFromEvent(event) {
+      const tr = event.target.closest("tbody tr");
+      if (!tr || tr.classList.contains("skeleton-row")) return null;
+      const index = Array.from(rowsEl.children).indexOf(tr);
+      if (index < 0) return null;
+      // The visible rows are sortedRows(currentRows); honor that ordering.
+      const visible = sortedRows(currentRows);
+      return visible[index] || null;
+    }
+
+    rowsEl.addEventListener("mouseover", (event) => {
+      // Don't open while interacting with the toolbar — clicking SOL/DEX
+      // should not be interrupted by a drawer reflow.
+      if (event.target.closest(".row-toolbar")) return;
+      const row = rowFromEvent(event);
+      if (!row) return;
+      if (drawerHideTimer) {
+        clearTimeout(drawerHideTimer);
+        drawerHideTimer = null;
+      }
+      if (drawerHoverTimer) clearTimeout(drawerHoverTimer);
+      drawerHoverTimer = setTimeout(() => showDrawer(row), 220);
+    });
+
+    rowsEl.addEventListener("mouseleave", () => {
+      if (drawerHoverTimer) clearTimeout(drawerHoverTimer);
+      drawerHoverTimer = null;
+      if (drawerPinned) return;
+      // Grace period -- so moving the cursor onto the drawer keeps it open.
+      drawerHideTimer = setTimeout(hideDrawer, 240);
+    });
+
+    drawerEl.addEventListener("mouseenter", () => {
+      if (drawerHideTimer) {
+        clearTimeout(drawerHideTimer);
+        drawerHideTimer = null;
+      }
+    });
+
+    drawerEl.addEventListener("mouseleave", () => {
+      if (drawerPinned) return;
+      drawerHideTimer = setTimeout(hideDrawer, 200);
+    });
+
+    drawerEl.addEventListener("click", (event) => {
+      const closeBtn = event.target.closest(".drawer-close");
+      if (closeBtn) {
+        drawerPinned = false;
+        hideDrawer();
+        return;
+      }
+      const pinBtn = event.target.closest(".drawer-pin");
+      if (pinBtn) {
+        drawerPinned = !drawerPinned;
+        if (drawerCurrentRow) renderDrawer(drawerCurrentRow);
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && drawerEl.classList.contains("is-visible")) {
+        drawerPinned = false;
+        hideDrawer();
+      }
+    });
 
     // ---- Status filter chips --------------------------------------------
     //
