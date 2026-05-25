@@ -103,9 +103,17 @@ async def fetch_watchlist(pool: asyncpg.Pool, status: str | None, limit: int) ->
         where_conditions = ["LOWER(COALESCE(p.dex_id, '')) <> 'pumpfun'"]
         params: list[Any] = [limit]
 
+        # ``status`` accepts a single value ("WATCHLIST_PASS") or a
+        # comma-separated list ("WATCHLIST_PASS,WATCHLIST_PASS_HIGH_RISK")
+        # so the dashboard filter chips can multi-select. Empty / missing
+        # means "no status filter".
         if status:
-            where_conditions.append("latest_wd.final_watchlist_status = $2")
-            params.append(status)
+            statuses = [s.strip() for s in status.split(",") if s.strip()]
+            if statuses:
+                where_conditions.append(
+                    "latest_wd.final_watchlist_status = ANY($2::text[])"
+                )
+                params.append(statuses)
 
         where = "WHERE " + " AND ".join(where_conditions)
 

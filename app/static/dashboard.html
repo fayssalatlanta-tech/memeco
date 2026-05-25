@@ -1197,6 +1197,69 @@
       color: #d8ceff;
     }
 
+    /* Filter chips: multi-select replacement for the old <select>.
+       Click "All decisions" to clear; click any specific chip to add
+       it to the active set; clicking again removes it. */
+    .filter-chip-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .filter-chip {
+      height: 30px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .05);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .02em;
+      cursor: pointer;
+      box-shadow: none;
+      transition: border-color .14s ease, background .14s ease, color .14s ease;
+    }
+
+    .filter-chip:hover {
+      transform: none;
+      border-color: rgba(187, 167, 255, .42);
+      background: rgba(255, 255, 255, .08);
+    }
+
+    .filter-chip[aria-pressed="true"] {
+      border-color: rgba(187, 167, 255, .55);
+      background: rgba(187, 167, 255, .18);
+      color: #d8ceff;
+    }
+
+    .filter-chip.pass[aria-pressed="true"] {
+      border-color: rgba(71, 229, 157, .55);
+      background: rgba(71, 229, 157, .15);
+      color: #74e39b;
+    }
+
+    .filter-chip.review[aria-pressed="true"] {
+      border-color: rgba(170, 178, 255, .55);
+      background: rgba(170, 178, 255, .15);
+      color: #aab2ff;
+    }
+
+    .filter-chip.wait[aria-pressed="true"] {
+      border-color: rgba(255, 209, 102, .55);
+      background: rgba(255, 209, 102, .14);
+      color: #ffd166;
+    }
+
+    .filter-chip.reject[aria-pressed="true"] {
+      border-color: rgba(255, 91, 110, .55);
+      background: rgba(255, 91, 110, .14);
+      color: #ff5b6e;
+    }
+
     .token {
       min-width: 220px;
     }
@@ -1826,18 +1889,23 @@
         <div class="side-section">
           <p class="side-label">Decision Filter</p>
           <div class="side-card">
-            <div class="scan-stage">Filter the main table while cards keep the best opportunities visible.</div>
-            <select id="statusFilter" aria-label="Filter status">
-              <option value="">All decisions</option>
-              <option value="WATCHLIST_PASS">Pass</option>
-              <option value="WATCHLIST_PASS_HIGH_RISK">Pass high risk</option>
-              <option value="WATCHLIST_WAIT_SECURITY_DATA">Wait security</option>
-              <option value="WATCHLIST_WAIT_LIQUIDITY">Wait liquidity</option>
-              <option value="WATCHLIST_REJECT_MARKET">Reject market</option>
-              <option value="WATCHLIST_REJECT_CONTRACT_RISK">Reject contract</option>
-              <option value="WATCHLIST_REJECT_LIQUIDITY">Reject liquidity</option>
-              <option value="WATCHLIST_REVIEW">Review</option>
-            </select>
+            <div class="scan-stage">Toggle one or many statuses. Cards above keep the best opportunities visible.</div>
+            <div
+              class="filter-chip-group"
+              id="statusFilter"
+              role="group"
+              aria-label="Filter watchlist by decision status"
+            >
+              <button type="button" class="filter-chip" data-status="" aria-pressed="true">All decisions</button>
+              <button type="button" class="filter-chip pass" data-status="WATCHLIST_PASS" aria-pressed="false">Pass</button>
+              <button type="button" class="filter-chip pass" data-status="WATCHLIST_PASS_HIGH_RISK" aria-pressed="false">Pass · High Risk</button>
+              <button type="button" class="filter-chip review" data-status="WATCHLIST_REVIEW" aria-pressed="false">Review</button>
+              <button type="button" class="filter-chip wait" data-status="WATCHLIST_WAIT_SECURITY_DATA" aria-pressed="false">Wait · Security</button>
+              <button type="button" class="filter-chip wait" data-status="WATCHLIST_WAIT_LIQUIDITY" aria-pressed="false">Wait · Liquidity</button>
+              <button type="button" class="filter-chip reject" data-status="WATCHLIST_REJECT_MARKET" aria-pressed="false">Reject · Market</button>
+              <button type="button" class="filter-chip reject" data-status="WATCHLIST_REJECT_CONTRACT_RISK" aria-pressed="false">Reject · Contract</button>
+              <button type="button" class="filter-chip reject" data-status="WATCHLIST_REJECT_LIQUIDITY" aria-pressed="false">Reject · Liquidity</button>
+            </div>
             <div class="side-stats" id="sideStats"></div>
           </div>
         </div>
@@ -1974,7 +2042,6 @@
     const statusNoteEl = document.querySelector("#statusNote");
     const liveDotEl = document.querySelector("#liveDot");
     const freshnessEl = document.querySelector("#freshness");
-    const statusFilterEl = document.querySelector("#statusFilter");
     const refreshButtonEl = document.querySelector("#refreshButton");
     const scanButtonEl = document.querySelector("#scanButton");
     const scanNoteEl = document.querySelector("#scanNote");
@@ -2897,6 +2964,61 @@
       loadHintEl.textContent = meter.hint;
     }
 
+    // ---- Status filter chips --------------------------------------------
+    //
+    // The decision filter is a multi-select chip group. Internal state is a
+    // Set of statuses; an empty set means "all decisions" (the "All" chip
+    // is then visually active). The legacy `?status=A` URL form still works
+    // and is read as a single-element selection.
+
+    const statusFilterEl = document.querySelector("#statusFilter");
+    const activeStatuses = new Set();
+
+    function getStatusParam() {
+      // Comma-separated for the API: "A,B,C". Empty when nothing selected.
+      return Array.from(activeStatuses).join(",");
+    }
+
+    function renderStatusChips() {
+      const chips = statusFilterEl.querySelectorAll(".filter-chip");
+      const allEmpty = activeStatuses.size === 0;
+      chips.forEach((chip) => {
+        const value = chip.dataset.status || "";
+        const pressed = value
+          ? activeStatuses.has(value)
+          : allEmpty;
+        chip.setAttribute("aria-pressed", String(pressed));
+      });
+    }
+
+    function setActiveStatuses(list) {
+      activeStatuses.clear();
+      list.forEach((s) => {
+        if (s) activeStatuses.add(s);
+      });
+      renderStatusChips();
+    }
+
+    function toggleStatus(value) {
+      if (!value) {
+        // "All decisions" chip: clear everything.
+        activeStatuses.clear();
+      } else if (activeStatuses.has(value)) {
+        activeStatuses.delete(value);
+      } else {
+        activeStatuses.add(value);
+      }
+      renderStatusChips();
+      writeUrlState();
+      loadDashboard();
+    }
+
+    statusFilterEl.addEventListener("click", (event) => {
+      const chip = event.target.closest(".filter-chip");
+      if (!chip || !statusFilterEl.contains(chip)) return;
+      toggleStatus(chip.dataset.status || "");
+    });
+
     // ---- Density toggle -------------------------------------------------
     //
     // Compact mode shrinks rows ~40% so power users can scan more tokens
@@ -3057,7 +3179,7 @@
     function writeUrlState() {
       try {
         const params = new URLSearchParams(window.location.search);
-        const status = statusFilterEl.value;
+        const status = getStatusParam();
         if (status) params.set("status", status); else params.delete("status");
         if (currentSort.key && currentSort.dir) {
           params.set("sort", currentSort.key);
@@ -3076,8 +3198,19 @@
 
     function applyUrlState() {
       const { status, sort, dir } = readUrlState();
-      if (status && Array.from(statusFilterEl.options).some((opt) => opt.value === status)) {
-        statusFilterEl.value = status;
+      if (status) {
+        // Accept comma-separated list ("A,B,C") and the legacy single
+        // value form ("A"). Unknown statuses are silently dropped so a
+        // stale bookmark never breaks the page.
+        const known = new Set(
+          Array.from(statusFilterEl.querySelectorAll(".filter-chip"))
+            .map((chip) => chip.dataset.status || "")
+            .filter(Boolean)
+        );
+        const requested = status.split(",").map((s) => s.trim()).filter(Boolean);
+        setActiveStatuses(requested.filter((s) => known.has(s)));
+      } else {
+        setActiveStatuses([]);
       }
       if (
         sort && SORT_EXTRACTORS[sort]
@@ -3157,7 +3290,7 @@
         renderSkeletonRows();
       }
 
-      const status = statusFilterEl.value;
+      const status = getStatusParam();
       const statusParam = status ? `&status=${encodeURIComponent(status)}` : "";
       try {
         const [summaryResponse, watchlistResponse] = await Promise.all([
@@ -3286,10 +3419,6 @@
     refreshButtonEl.addEventListener("click", loadDashboard);
     scanButtonEl.addEventListener("click", startScan);
     manualAnalyzeFormEl.addEventListener("submit", startManualAnalyze);
-    statusFilterEl.addEventListener("change", () => {
-      writeUrlState();
-      loadDashboard();
-    });
     document.addEventListener("click", (event) => {
       const button = event.target.closest(".copy-button");
       if (!button) return;
