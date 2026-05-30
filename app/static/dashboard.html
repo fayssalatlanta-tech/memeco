@@ -3069,6 +3069,325 @@
     body.density-compact .cb-hud > * { padding: 12px 16px; }
     body.density-compact .cb-hud .metric .value { font-size: 22px; }
 
+    /* ================================================================
+       SIGNAL FLOOR — table card extras: live header, view modes,
+       inline signal-chain barcode, tape feed, cockpit grid.
+       ================================================================ */
+
+    .cb-stream-head {
+      gap: 24px;
+      padding: 14px 18px 0;
+      border-bottom: none;
+    }
+
+    .cb-stream-title { display: grid; gap: 8px; }
+
+    .cb-stream-meta {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      font: 700 11px var(--mono);
+      letter-spacing: .14em;
+    }
+
+    .cb-stream-stat {
+      color: var(--muted);
+    }
+    .cb-stream-stat b { color: #fff; font-weight: 900; margin-right: 4px; }
+    .cb-stream-stat[data-tone="pass"] { color: var(--pass); }
+    .cb-stream-stat[data-tone="wait"] { color: var(--wait); }
+    .cb-stream-stat[data-tone="reject"] { color: var(--reject); }
+
+    .cb-stream-sep {
+      width: 1px; height: 14px;
+      background: rgba(255, 255, 255, .15);
+      display: inline-block;
+    }
+
+    .cb-stream-tools {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* View switcher (Table / Tape / Cockpit) */
+    .cb-view-switch {
+      display: inline-flex;
+      gap: 0;
+      padding: 3px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, .4);
+    }
+
+    .cb-view-btn {
+      height: 28px;
+      padding: 0 12px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font: 800 10px var(--mono);
+      letter-spacing: .18em;
+      cursor: pointer;
+      transition: color .14s ease, background .14s ease;
+    }
+    .cb-view-btn:hover { color: #fff; }
+    .cb-view-btn.is-active {
+      color: #000;
+      background: var(--accent);
+      box-shadow: 0 0 18px rgba(255, 102, 0, .4);
+    }
+
+    /* Signal-chain legend: thin bar above the table explaining the column */
+    .cb-stream-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      align-items: center;
+      padding: 10px 18px 14px;
+      font: 700 9px var(--mono);
+      letter-spacing: .18em;
+      color: var(--muted);
+      border-bottom: 1px solid rgba(255, 255, 255, .06);
+    }
+    .cb-stream-legend > span:first-child {
+      color: var(--accent);
+      letter-spacing: .26em;
+    }
+    .cb-stream-legend .legend-key {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cb-stream-legend .legend-key .bar {
+      display: inline-block;
+      width: 4px;
+      height: 12px;
+      border-radius: 1px;
+      background: rgba(255, 255, 255, .25);
+    }
+
+    /* Signal-chain barcode in the row */
+    .signal-col { width: 200px; }
+
+    .cb-signal-chain {
+      display: inline-flex;
+      gap: 3px;
+      align-items: stretch;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, .35);
+      border: 1px solid rgba(255, 255, 255, .04);
+    }
+
+    .cb-signal-bar {
+      width: 12px;
+      height: 26px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, .10);
+      position: relative;
+      cursor: help;
+      transition: transform .14s ease, box-shadow .14s ease;
+    }
+
+    .cb-signal-bar:hover {
+      transform: scaleY(1.15);
+      box-shadow: 0 0 10px currentColor;
+    }
+
+    .cb-signal-bar[data-tone="pass"] {
+      background: linear-gradient(180deg, rgba(47, 226, 138, .8), rgba(47, 226, 138, .25));
+      box-shadow: inset 0 0 0 1px rgba(47, 226, 138, .55);
+      color: var(--pass);
+    }
+    .cb-signal-bar[data-tone="warn"] {
+      background: linear-gradient(180deg, rgba(255, 194, 75, .85), rgba(255, 194, 75, .25));
+      box-shadow: inset 0 0 0 1px rgba(255, 194, 75, .55);
+      color: var(--wait);
+    }
+    .cb-signal-bar[data-tone="fail"] {
+      background: linear-gradient(180deg, rgba(255, 77, 94, .85), rgba(255, 77, 94, .25));
+      box-shadow: inset 0 0 0 1px rgba(255, 77, 94, .55);
+      color: var(--reject);
+    }
+    .cb-signal-bar[data-tone="unknown"] {
+      background: rgba(255, 255, 255, .12);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
+    }
+
+    /* Hover the chain to highlight the breaking stage */
+    .cb-signal-chain:hover .cb-signal-bar { opacity: .55; }
+    .cb-signal-chain .cb-signal-bar:hover { opacity: 1; }
+
+    /* Verdict pill rendered next to the chain */
+    .cb-verdict {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+      margin-left: 8px;
+      border-radius: 999px;
+      font: 900 10px var(--mono);
+      letter-spacing: .14em;
+      border: 1px solid currentColor;
+    }
+    .cb-verdict[data-tone="pass"]   { color: var(--pass);   background: rgba(47, 226, 138, .12); }
+    .cb-verdict[data-tone="warn"]   { color: var(--wait);   background: rgba(255, 194, 75, .12); }
+    .cb-verdict[data-tone="reject"] { color: var(--reject); background: rgba(255, 77, 94, .12); }
+    .cb-verdict[data-tone="review"] { color: var(--accent); background: rgba(255, 102, 0, .12); }
+    .cb-verdict[data-tone="unknown"]{ color: var(--muted);  background: rgba(255, 255, 255, .04); }
+
+    /* Show only one view at a time */
+    .cb-table-card .table-wrap[hidden],
+    .cb-table-card .cb-tape[hidden],
+    .cb-table-card .cb-cockpit[hidden] { display: none; }
+
+    /* ---- TAPE VIEW — chronological pulse feed -------------------------- */
+    .cb-tape {
+      padding: 8px 14px 18px;
+      max-height: 720px;
+      overflow-y: auto;
+    }
+    .cb-tape::-webkit-scrollbar { width: 6px; }
+    .cb-tape::-webkit-scrollbar-thumb { background: rgba(255, 102, 0, .25); border-radius: 999px; }
+
+    .cb-tape-row {
+      display: grid;
+      grid-template-columns: 110px 1fr auto auto;
+      gap: 14px;
+      align-items: center;
+      padding: 10px 4px;
+      border-bottom: 1px dashed rgba(255, 255, 255, .06);
+      position: relative;
+    }
+    .cb-tape-row::before {
+      content: "";
+      position: absolute;
+      left: -8px; top: 14px;
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+    .cb-tape-row:hover { background: rgba(255, 102, 0, .04); }
+
+    .cb-tape-time {
+      font: 800 11px var(--mono);
+      letter-spacing: .04em;
+      color: var(--muted);
+    }
+
+    .cb-tape-token {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      color: #fff;
+      font: 800 13px var(--mono);
+    }
+    .cb-tape-token a { color: inherit; }
+    .cb-tape-token a:hover { color: var(--accent); }
+    .cb-tape-token .sub {
+      font: 600 11px var(--mono);
+      color: var(--muted);
+      letter-spacing: .04em;
+    }
+
+    .cb-tape-row .cb-signal-chain { padding: 3px 5px; }
+    .cb-tape-row .cb-signal-bar { height: 22px; width: 10px; }
+
+    /* ---- COCKPIT VIEW — detailed card grid ----------------------------- */
+    .cb-cockpit {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .cb-cockpit-card {
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 12px;
+      padding: 16px;
+      background: linear-gradient(180deg, rgba(20, 20, 20, .9), rgba(10, 10, 10, .92));
+      display: grid;
+      gap: 12px;
+      transition: border-color .14s ease, transform .14s ease;
+    }
+    .cb-cockpit-card:hover {
+      border-color: rgba(255, 102, 0, .45);
+      transform: translateY(-1px);
+    }
+
+    .cb-cockpit-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .cb-cockpit-symbol {
+      font: 900 16px var(--mono);
+      color: #fff;
+      letter-spacing: .04em;
+    }
+    .cb-cockpit-symbol a { color: inherit; }
+    .cb-cockpit-symbol a:hover { color: var(--accent); }
+    .cb-cockpit-name {
+      margin-top: 2px;
+      font: 600 11px var(--mono);
+      color: var(--muted);
+    }
+
+    .cb-cockpit-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .cb-cockpit-stat {
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .02);
+    }
+    .cb-cockpit-stat .lbl {
+      font: 800 9px var(--mono);
+      letter-spacing: .18em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .cb-cockpit-stat .val {
+      font: 900 13px var(--mono);
+      color: #fff;
+    }
+
+    .cb-cockpit-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font: 600 11px var(--mono);
+      color: var(--muted);
+    }
+
+    /* Empty-state shared across views */
+    .cb-stream-empty {
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--muted);
+      font: 700 12px var(--mono);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+    .cb-stream-empty::before {
+      content: "▲";
+      display: block;
+      margin-bottom: 12px;
+      font-size: 28px;
+      color: var(--accent);
+      text-shadow: 0 0 18px var(--accent);
+    }
+
     /* ---- Responsive ----------------------------------------------------- */
     @media (max-width: 980px) {
       .cb-shell { padding: 12px 12px 28px; }
@@ -3227,22 +3546,45 @@
     </section>
 
     <!-- The big table: Decision Stream -->
-    <section class="cb-table-card table-card">
-      <header class="table-head cb-section-head">
-        <div>
-          <h2>DECISION STREAM</h2>
-          <div class="cb-section-note">Latest analyzed first. Hover a row for the live decision tree.</div>
+    <section class="cb-table-card table-card" id="streamCard">
+      <header class="table-head cb-section-head cb-stream-head">
+        <div class="cb-stream-title">
+          <h2>SIGNAL FLOOR</h2>
+          <div class="cb-stream-meta">
+            <span class="cb-stream-stat" id="streamPassCount" data-tone="pass">— PASS</span>
+            <span class="cb-stream-stat" id="streamWaitCount" data-tone="wait">— WAIT</span>
+            <span class="cb-stream-stat" id="streamRejectCount" data-tone="reject">— REJECT</span>
+            <span class="cb-stream-sep" aria-hidden="true"></span>
+            <span class="cb-stream-stat" id="streamFreshest"><b>—</b> FRESHEST</span>
+          </div>
         </div>
-        <div class="table-tools">
+        <div class="table-tools cb-stream-tools">
+          <div class="cb-view-switch" role="tablist" aria-label="Switch view">
+            <button type="button" class="cb-view-btn is-active" data-view="table" role="tab" aria-selected="true" title="Dense table view">▦ TABLE</button>
+            <button type="button" class="cb-view-btn" data-view="tape" role="tab" aria-selected="false" title="Chronological tape view">≡ TAPE</button>
+            <button type="button" class="cb-view-btn" data-view="cockpit" role="tab" aria-selected="false" title="Detailed card grid">▣ COCKPIT</button>
+          </div>
           <div class="table-note cb-table-count" id="tableCount">0 TOKENS</div>
         </div>
       </header>
-      <div class="table-wrap">
+      <div class="cb-stream-legend" aria-hidden="true">
+        <span>SIGNAL CHAIN →</span>
+        <span class="legend-key"><i class="bar"></i>MARKET</span>
+        <span class="legend-key"><i class="bar"></i>CONTRACT</span>
+        <span class="legend-key"><i class="bar"></i>LIQ</span>
+        <span class="legend-key"><i class="bar"></i>TRAP</span>
+        <span class="legend-key"><i class="bar"></i>WALLET</span>
+        <span class="legend-key"><i class="bar"></i>CLUSTER</span>
+        <span class="legend-key"><i class="bar"></i>MANIP</span>
+        <span class="legend-key"><i class="bar"></i>DEV</span>
+        <span class="legend-key"><i class="bar"></i>INSIDER</span>
+      </div>
+      <div class="table-wrap" data-view="table">
         <table>
           <colgroup>
             <col class="token-col">
+            <col class="signal-col">
             <col class="opportunity-col">
-            <col class="safety-col">
             <col class="liquidity-col">
             <col class="wallet-col">
             <col class="decision-col">
@@ -3251,10 +3593,10 @@
           <thead>
             <tr>
               <th class="sortable" data-sort-key="symbol">Token<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th>Signal Chain</th>
               <th class="sortable" data-sort-key="opportunity">Opportunity<span class="sort-arrow" aria-hidden="true">↕</span></th>
-              <th class="sortable" data-sort-key="safety">Safety<span class="sort-arrow" aria-hidden="true">↕</span></th>
               <th class="sortable" data-sort-key="liquidity">Liquidity<span class="sort-arrow" aria-hidden="true">↕</span></th>
-              <th class="sortable" data-sort-key="manipulation">Wallet Signals<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="manipulation">Wallet<span class="sort-arrow" aria-hidden="true">↕</span></th>
               <th class="sortable" data-sort-key="decision">Decision<span class="sort-arrow" aria-hidden="true">↕</span></th>
               <th class="sortable" data-sort-key="updated">Updated<span class="sort-arrow" aria-hidden="true">↕</span></th>
             </tr>
@@ -3262,6 +3604,8 @@
           <tbody id="watchlistRows"></tbody>
         </table>
       </div>
+      <div class="cb-tape" id="streamTape" hidden></div>
+      <div class="cb-cockpit" id="streamCockpit" hidden></div>
     </section>
 
   </div>
@@ -4156,19 +4500,100 @@
       `;
     }
 
+    // ---- Signal chain (per-row barcode of the 9 pipeline stages) -------
+    //
+    // Each row gets a 9-bar barcode showing the tone of every analysis
+    // stage. This makes "why" visible without hovering. Stages match the
+    // decision drawer order.
+
+    function signalStages(row) {
+      const details = rowDetails(row);
+      const insiderLevel = details.insider_probability_level || "";
+      return [
+        { name: "Market",       status: row.market_filter_status,                                          pass: row.market_filter_pass },
+        { name: "Contract",     status: row.contract_risk_status,                                          pass: row.contract_risk_pass },
+        { name: "Liquidity",    status: details.liquidity_status,                                          pass: null },
+        { name: "Liquidity Trap", status: details.liquidity_trap_status,                                    pass: null },
+        { name: "Wallet",       status: row.wallet_status,                                                 pass: row.wallet_pass },
+        { name: "Cluster",      status: row.cluster_status,                                                pass: row.cluster_pass },
+        { name: "Manipulation", status: row.manipulation_status,                                           pass: row.manipulation_pass },
+        { name: "Dev",          status: details.dev_audit_status,                                          pass: null },
+        { name: "Insider",      status: insiderLevel ? `INSIDER_${insiderLevel}` : "",                     pass: null },
+      ];
+    }
+
+    function renderSignalChain(row) {
+      const stages = signalStages(row);
+      const bars = stages.map((stage) => {
+        const tone = stageToneFromStatus(stage.status, stage.pass);
+        const label = `${stage.name}: ${stage.status || "n/a"}`;
+        return `<span class="cb-signal-bar" data-tone="${tone}" title="${escapeHtml(label)}"></span>`;
+      }).join("");
+      const verdictTone = decisionFinalTone(row);
+      const verdictLabel = finalDecisionLabel(row.final_watchlist_status);
+      return `
+        <div class="cb-signal-cell">
+          <div class="cb-signal-chain">${bars}</div>
+          <span class="cb-verdict" data-tone="${verdictTone}">${escapeHtml(verdictLabel)}</span>
+        </div>
+      `;
+    }
+
+    // ---- Live header counters ------------------------------------------
+    const streamPassCountEl = document.querySelector("#streamPassCount");
+    const streamWaitCountEl = document.querySelector("#streamWaitCount");
+    const streamRejectCountEl = document.querySelector("#streamRejectCount");
+    const streamFreshestEl = document.querySelector("#streamFreshest");
+
+    function updateStreamHeader(rows) {
+      let pass = 0, wait = 0, reject = 0, freshest = null;
+      rows.forEach((row) => {
+        const status = String(row.final_watchlist_status || "");
+        if (status === "WATCHLIST_PASS" || status === "WATCHLIST_PASS_HIGH_RISK") pass += 1;
+        else if (status.startsWith("WATCHLIST_WAIT") || status === "WATCHLIST_REVIEW") wait += 1;
+        else if (status.startsWith("WATCHLIST_REJECT")) reject += 1;
+        const ageMin = row.dexscreener_age_minutes ?? row.pair_age_minutes;
+        if (ageMin !== null && ageMin !== undefined) {
+          const minutes = Number(ageMin);
+          if (Number.isFinite(minutes) && (freshest === null || minutes < freshest)) {
+            freshest = minutes;
+          }
+        }
+      });
+      streamPassCountEl.firstChild.textContent = String(pass);
+      streamWaitCountEl.firstChild.textContent = String(wait);
+      streamRejectCountEl.firstChild.textContent = String(reject);
+      // streamPassCountEl is "<num> PASS" — but textContent above replaces
+      // only the leading text node. Ensure full label stays:
+      streamPassCountEl.textContent = `${pass} PASS`;
+      streamPassCountEl.dataset.tone = "pass";
+      streamWaitCountEl.textContent = `${wait} WAIT`;
+      streamWaitCountEl.dataset.tone = "wait";
+      streamRejectCountEl.textContent = `${reject} REJECT`;
+      streamRejectCountEl.dataset.tone = "reject";
+      const freshLabel = freshest === null
+        ? "—"
+        : freshest < 60
+          ? `${Math.max(0, Math.round(freshest))}M`
+          : freshest < 1440
+            ? `${(freshest / 60).toFixed(1)}H`
+            : `${(freshest / 1440).toFixed(1)}D`;
+      streamFreshestEl.innerHTML = `<b>${escapeHtml(freshLabel)}</b> FRESHEST`;
+    }
+
     function renderRows(rows) {
-      tableCountEl.textContent = `${rows.length} tokens`;
+      tableCountEl.textContent = `${rows.length} TOKENS`;
       if (!rows.length) {
-        rowsEl.innerHTML = `<tr><td class="empty" colspan="7">No watchlist decisions found.</td></tr>`;
+        rowsEl.innerHTML = `<tr><td colspan="7"><div class="cb-stream-empty">No watchlist decisions match the active filters.</div></td></tr>`;
         return;
       }
       rowsEl.innerHTML = rows.map((row) => `
         <tr>
           <td class="token" data-label="Token">${renderTokenIdentity(row)}</td>
+          <td class="signal" data-label="Signal Chain">${renderSignalChain(row)}</td>
           <td data-label="Opportunity">${formatTableOpportunity(row)}</td>
-          <td data-label="Safety">${formatTableSafety(row)}</td>
           <td data-label="Liquidity">${formatTableLiquidity(row)}</td>
-          <td data-label="Wallet Signals">${formatTableWallet(row)}</td>
+          <td data-label="Wallet">${formatTableWallet(row)}</td>
           <td data-label="Decision">${formatTableDecision(row)}</td>
           <td data-label="Updated">
             <div class="table-cell"><div class="cell-sub">${escapeHtml(formatShortDate(row.created_at))}</div></div>
@@ -4177,6 +4602,126 @@
         </tr>
       `).join("");
     }
+
+    // ---- Tape view (chronological pulse feed) --------------------------
+    function renderTape(rows) {
+      const tape = document.querySelector("#streamTape");
+      if (!rows.length) {
+        tape.innerHTML = `<div class="cb-stream-empty">No watchlist decisions match the active filters.</div>`;
+        return;
+      }
+      // Already sorted by sortedRows(); fall back to created_at desc when
+      // no explicit sort. Tape cares about chronology — sort by created_at
+      // desc so newest is on top.
+      const ordered = rows.slice().sort((a, b) => {
+        const ta = a.created_at ? Date.parse(a.created_at) : 0;
+        const tb = b.created_at ? Date.parse(b.created_at) : 0;
+        return tb - ta;
+      });
+      tape.innerHTML = ordered.map((row) => {
+        const symbol = escapeHtml(row.symbol || "Unknown");
+        const name = escapeHtml(row.name || "");
+        const time = escapeHtml(formatShortDate(row.created_at));
+        const verdictTone = decisionFinalTone(row);
+        const verdictLabel = finalDecisionLabel(row.final_watchlist_status);
+        return `
+          <div class="cb-tape-row">
+            <div class="cb-tape-time">${time}</div>
+            <div class="cb-tape-token">
+              <a href="${tokenDetailUrl(row)}">${symbol}</a>
+              <span class="sub">${name}</span>
+              ${isStarred(row.token_address) ? '<span class="star-mark" aria-label="Starred">★</span>' : ""}
+            </div>
+            <div class="cb-signal-chain">${signalStages(row).map((stage) => {
+              const tone = stageToneFromStatus(stage.status, stage.pass);
+              return `<span class="cb-signal-bar" data-tone="${tone}" title="${escapeHtml(stage.name + ': ' + (stage.status || 'n/a'))}"></span>`;
+            }).join("")}</div>
+            <span class="cb-verdict" data-tone="${verdictTone}">${escapeHtml(verdictLabel)}</span>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // ---- Cockpit view (detailed card grid) -----------------------------
+    function renderCockpit(rows) {
+      const cockpit = document.querySelector("#streamCockpit");
+      if (!rows.length) {
+        cockpit.innerHTML = `<div class="cb-stream-empty">No watchlist decisions match the active filters.</div>`;
+        return;
+      }
+      cockpit.innerHTML = rows.map((row) => {
+        const details = rowDetails(row);
+        const symbol = escapeHtml(row.symbol || "Unknown");
+        const name = escapeHtml(row.name || "");
+        const verdictTone = decisionFinalTone(row);
+        const verdictLabel = finalDecisionLabel(row.final_watchlist_status);
+        const insider = MemecoUtils.numberOrNull(details.insider_probability_score);
+        const trap = MemecoUtils.numberOrNull(details.liquidity_trap_score);
+        const liquidity = MemecoUtils.numberOrNull(row.liquidity_usd);
+        const reason = escapeHtml(row.final_watchlist_reason || "No reason recorded");
+        return `
+          <article class="cb-cockpit-card">
+            <div class="cb-cockpit-head">
+              <div>
+                <div class="cb-cockpit-symbol">
+                  <a href="${tokenDetailUrl(row)}">${symbol}</a>
+                  ${isStarred(row.token_address) ? '<span class="star-mark" aria-label="Starred">★</span>' : ""}
+                </div>
+                <div class="cb-cockpit-name">${name}</div>
+              </div>
+              <span class="cb-verdict" data-tone="${verdictTone}">${escapeHtml(verdictLabel)}</span>
+            </div>
+            <div class="cb-signal-chain">${signalStages(row).map((stage) => {
+              const tone = stageToneFromStatus(stage.status, stage.pass);
+              return `<span class="cb-signal-bar" data-tone="${tone}" title="${escapeHtml(stage.name + ': ' + (stage.status || 'n/a'))}"></span>`;
+            }).join("")}</div>
+            <div class="cb-cockpit-stats">
+              <div class="cb-cockpit-stat"><div class="lbl">INSIDER</div><div class="val">${insider !== null ? insider + "/100" : "—"}</div></div>
+              <div class="cb-cockpit-stat"><div class="lbl">TRAP</div><div class="val">${trap !== null ? trap + "/100" : "—"}</div></div>
+              <div class="cb-cockpit-stat"><div class="lbl">LIQ</div><div class="val">${liquidity !== null ? formatMoney(liquidity) : "—"}</div></div>
+            </div>
+            <div class="cb-cockpit-foot">
+              <span title="${reason}">${reason.length > 80 ? reason.slice(0, 80) + "…" : reason}</span>
+              <span>${escapeHtml(formatShortDate(row.created_at))}</span>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    // ---- View switcher --------------------------------------------------
+    let currentView = "table";
+    const viewSwitchEl = document.querySelector(".cb-view-switch");
+    const tableWrapEl = document.querySelector(".cb-table-card .table-wrap");
+    const tapeEl = document.querySelector("#streamTape");
+    const cockpitEl = document.querySelector("#streamCockpit");
+
+    function applyView(view) {
+      currentView = view;
+      tableWrapEl.hidden = view !== "table";
+      tapeEl.hidden = view !== "tape";
+      cockpitEl.hidden = view !== "cockpit";
+      viewSwitchEl.querySelectorAll(".cb-view-btn").forEach((btn) => {
+        const active = btn.dataset.view === view;
+        btn.classList.toggle("is-active", active);
+        btn.setAttribute("aria-selected", String(active));
+      });
+      renderActiveView();
+    }
+
+    function renderActiveView() {
+      const visible = sortedRows(currentRows);
+      updateStreamHeader(visible);
+      if (currentView === "tape") renderTape(visible);
+      else if (currentView === "cockpit") renderCockpit(visible);
+      else renderRows(visible);
+    }
+
+    viewSwitchEl.addEventListener("click", (event) => {
+      const btn = event.target.closest(".cb-view-btn");
+      if (!btn) return;
+      applyView(btn.dataset.view);
+    });
 
     function renderDashboardRows(rows, allRows = rows) {
       // Always run diffs against the full unfiltered set so a status
@@ -4193,7 +4738,7 @@
         ? rows.filter((row) => isStarred(row.token_address))
         : rows;
       currentRows = filtered;
-      renderRows(sortedRows(currentRows));
+      renderActiveView();
     }
 
     function elapsedMinutes(startedAt) {
@@ -4370,7 +4915,7 @@
       saveStarred();
       // Re-render so star markers, toolbar buttons, and the optional
       // "Starred" filter all reflect the change.
-      renderRows(sortedRows(currentRows));
+      renderActiveView();
     }
 
     // Cross-tab sync: another tab toggling a star updates this tab too.
@@ -4383,7 +4928,7 @@
       } catch (error) {
         // ignore
       }
-      renderRows(sortedRows(currentRows));
+      renderActiveView();
     });
 
     loadStarred();
@@ -5037,7 +5582,7 @@
       }
       updateSortHeaders();
       writeUrlState();
-      renderRows(sortedRows(currentRows));
+      renderActiveView();
     }
 
     document.querySelectorAll("th.sortable").forEach((th) => {
