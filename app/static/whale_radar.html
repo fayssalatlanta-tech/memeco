@@ -711,95 +711,676 @@
       .live-feed-scroll { max-height: 386px; }
       .feed-tools { justify-content: flex-start; }
     }
+
+    /* ================================================================
+       WR — RADAR CONSOLE — full layout override.
+       ================================================================ */
+
+    :root {
+      --wr-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+      --wr-edge: 22px;
+    }
+
+    body {
+      background:
+        radial-gradient(1100px 600px at 100% -10%, rgba(255, 102, 0, .12), transparent 55%),
+        radial-gradient(900px 500px at -10% 110%, rgba(255, 136, 0, .06), transparent 55%),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, .015) 0 1px, transparent 1px 96px),
+        #000;
+    }
+
+    .wr-shell {
+      max-width: 1640px;
+      margin: 0 auto;
+      padding: 16px var(--wr-edge) 36px;
+      display: grid;
+      gap: 18px;
+    }
+
+    /* hide all legacy layout wrappers; the new shell handles everything */
+    .shell, .topbar, .overview, .layout, .live-feed-panel.panel, .panel.live-feed-panel {
+      /* no-op — we use new class names; legacy ones won't appear in markup */
+    }
+
+    /* ---- Brand bar ----------------------------------------------------- */
+    .wr-brand-bar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      display: grid;
+      grid-template-columns: minmax(260px, auto) 1fr minmax(220px, auto);
+      align-items: center;
+      gap: 18px;
+      height: 56px;
+      padding: 0 14px;
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 10px;
+      background: rgba(8, 8, 10, .72);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, .55);
+    }
+    .wr-brand { display: inline-flex; align-items: center; gap: 10px; }
+    .wr-brand-mark {
+      width: 28px; height: 28px;
+      display: grid; place-items: center;
+      border: 1px solid rgba(255, 102, 0, .55);
+      border-radius: 6px;
+      background: rgba(255, 102, 0, .14);
+      color: var(--accent);
+      font: 900 14px var(--wr-mono);
+      box-shadow: 0 0 18px rgba(255, 102, 0, .35);
+    }
+    .wr-brand-name { font: 900 13px var(--wr-mono); letter-spacing: .26em; color: #fff; line-height: 1; }
+    .wr-brand-tag { margin-top: 3px; font: 800 9px var(--wr-mono); letter-spacing: .26em; color: var(--muted); }
+
+    .wr-nav { justify-self: center; display: inline-flex; gap: 16px; align-items: center; font: 800 11px var(--wr-mono); letter-spacing: .22em; }
+    .wr-nav-link { padding: 8px 4px; color: var(--muted); position: relative; }
+    .wr-nav-link:hover { color: #fff; }
+    .wr-nav-link.is-active { color: var(--accent); }
+    .wr-nav-link.is-active::after {
+      content: "";
+      position: absolute; left: 0; right: 0; bottom: -2px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+
+    .wr-brand-right { justify-self: end; display: inline-flex; gap: 10px; align-items: center; }
+
+    .wr-pulse-state {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .03);
+      font: 700 11px var(--wr-mono);
+      letter-spacing: .04em;
+      color: var(--muted);
+    }
+    .wr-pulse-state em { font-style: normal; color: #fff; }
+    .wr-pulse-state .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+      animation: wrPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes wrPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .55; transform: scale(.85); }
+    }
+
+    /* ---- Radar section + Command rail ---------------------------------- */
+    .wr-radar-section {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 18px;
+    }
+
+    .wr-radar-card {
+      border: 1px solid rgba(255, 102, 0, .35);
+      border-radius: 14px;
+      padding: 24px;
+      background:
+        radial-gradient(600px 240px at 80% -20%, rgba(255, 102, 0, .14), transparent 55%),
+        linear-gradient(180deg, rgba(20, 20, 20, .9), rgba(8, 8, 8, .94));
+      box-shadow: 0 0 0 1px rgba(255, 102, 0, .12), 0 30px 80px -20px rgba(0, 0, 0, .8);
+      display: grid;
+      gap: 18px;
+    }
+
+    .wr-radar-stage {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 28px;
+      align-items: center;
+    }
+
+    /* The radar orb itself: concentric rings + sweep line + pulsing pip */
+    .wr-radar-orb {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      margin: 0 auto;
+    }
+    .wr-radar-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 102, 0, .25);
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .wr-radar-ring.r1 { width: 200px; height: 200px; }
+    .wr-radar-ring.r2 { width: 140px; height: 140px; border-color: rgba(255, 102, 0, .35); }
+    .wr-radar-ring.r3 { width: 80px;  height: 80px;  border-color: rgba(255, 102, 0, .55); }
+
+    .wr-radar-orb::before,
+    .wr-radar-orb::after {
+      content: "";
+      position: absolute;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255, 102, 0, .18);
+    }
+    .wr-radar-orb::before { width: 200px; height: 1px; }
+    .wr-radar-orb::after  { width: 1px; height: 200px; }
+
+    /* Sweep arm (rotates around centre) */
+    .wr-radar-sweep {
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 100px; height: 2px;
+      transform-origin: left center;
+      background: linear-gradient(90deg, var(--accent), transparent);
+      filter: drop-shadow(0 0 8px var(--accent));
+      animation: wrSweep 3.6s linear infinite;
+    }
+    @keyframes wrSweep {
+      0%   { transform: translateY(-50%) rotate(0deg); }
+      100% { transform: translateY(-50%) rotate(360deg); }
+    }
+
+    /* Pip — pulsing dot at the centre */
+    .wr-radar-pip {
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 18px var(--accent), 0 0 0 0 rgba(255, 102, 0, .6);
+      animation: wrPipPulse 2.4s ease-out infinite;
+    }
+    @keyframes wrPipPulse {
+      0%   { box-shadow: 0 0 18px var(--accent), 0 0 0 0 rgba(255, 102, 0, .6); }
+      100% { box-shadow: 0 0 18px var(--accent), 0 0 0 28px rgba(255, 102, 0, 0); }
+    }
+
+    .wr-radar-pip.flash {
+      animation: wrPipFlash .8s ease-out 1, wrPipPulse 2.4s ease-out infinite .8s;
+    }
+    @keyframes wrPipFlash {
+      0%   { background: #fff; box-shadow: 0 0 30px #fff, 0 0 0 0 rgba(255, 255, 255, .8); }
+      100% { background: var(--accent); box-shadow: 0 0 18px var(--accent), 0 0 0 36px rgba(255, 255, 255, 0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .wr-radar-sweep, .wr-radar-pip { animation: none; }
+    }
+
+    /* Readout: "LAST INTERCEPT — wallet · token — type · amount · ago" */
+    .wr-readout-eyebrow {
+      font: 800 10px var(--wr-mono);
+      letter-spacing: .26em;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .wr-readout-line {
+      font: 900 22px var(--wr-mono);
+      letter-spacing: .04em;
+      color: #fff;
+      text-shadow: 0 0 22px rgba(255, 102, 0, .35);
+    }
+    .wr-readout-meta {
+      margin-top: 6px;
+      font: 600 12px var(--wr-mono);
+      color: var(--muted);
+    }
+
+    /* Webhook strip below the orb */
+    .wr-radar-rings {
+      display: flex; align-items: center; gap: 14px;
+      padding-top: 12px;
+      border-top: 1px dashed rgba(255, 255, 255, .06);
+    }
+
+    .wr-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 10px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .03);
+      font: 700 10px var(--wr-mono);
+      letter-spacing: .14em;
+    }
+    .wr-pill .lbl { color: var(--muted); }
+    .wr-pill b { color: #fff; font-weight: 900; }
+
+    .wr-radar-rings[data-status="ACTIVE"] .wr-pill,
+    .wr-radar-rings[data-status="active"] .wr-pill {
+      border-color: rgba(47, 226, 138, .55);
+      background: rgba(47, 226, 138, .12);
+    }
+    .wr-radar-rings[data-status="ACTIVE"] .wr-pill b,
+    .wr-radar-rings[data-status="active"] .wr-pill b { color: var(--green); }
+
+    .wr-radar-rings[data-status="missing"] .wr-pill {
+      border-color: rgba(255, 77, 94, .55);
+      background: rgba(255, 77, 94, .12);
+    }
+    .wr-radar-rings[data-status="missing"] .wr-pill b { color: var(--red); }
+
+    /* Command rail (vertical, right of the orb) */
+    .wr-command-rail {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(18, 18, 18, .92), rgba(10, 10, 10, .92));
+    }
+    .wr-command-title {
+      font: 900 10px var(--wr-mono);
+      letter-spacing: .26em;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .wr-cmd, .wr-cmd-ghost {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 10px;
+      width: 100%;
+      height: 36px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      background: rgba(255, 255, 255, .025);
+      color: var(--muted);
+      font: 800 10px var(--wr-mono);
+      letter-spacing: .18em;
+      cursor: pointer;
+      transition: color .14s ease, border-color .14s ease, background .14s ease;
+    }
+    .wr-cmd:hover, .wr-cmd-ghost:hover {
+      border-color: var(--accent);
+      background: rgba(255, 102, 0, .08);
+      color: #fff;
+    }
+    .wr-cmd.primary {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+      color: #000;
+      box-shadow: 0 14px 28px -10px rgba(255, 102, 0, .55);
+    }
+
+    /* ---- HUD KPI strip ------------------------------------------------- */
+    .wr-hud {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1px;
+      background: rgba(255, 255, 255, .06);
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .wr-hud .metric {
+      display: block;
+      padding: 18px 20px;
+      background: linear-gradient(180deg, rgba(20, 20, 20, .92), rgba(12, 12, 12, .92));
+      border: none;
+      position: relative;
+    }
+    .wr-hud .metric::before {
+      content: "";
+      position: absolute; left: 0; top: 0; bottom: 0;
+      width: 2px;
+      background: var(--accent);
+      opacity: .55;
+    }
+    .wr-hud .metric .label {
+      font: 800 9px var(--wr-mono);
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .wr-hud .metric .value {
+      font: 900 26px var(--wr-mono);
+      color: #fff;
+      line-height: 1;
+      text-shadow: 0 0 24px rgba(255, 102, 0, .35);
+    }
+
+    /* ---- Panels (shared frame) ----------------------------------------- */
+    .wr-panel {
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(16, 16, 16, .92), rgba(8, 8, 8, .94));
+      padding: 18px;
+    }
+
+    .wr-panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .wr-panel-head h2 {
+      margin: 0;
+      font: 900 12px var(--wr-mono);
+      letter-spacing: .22em;
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .wr-panel-head h2 .dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+      flex-shrink: 0;
+    }
+    .wr-panel-head h2 .dot.pulse { animation: wrPulse 2s ease-in-out infinite; }
+
+    .wr-panel-note {
+      margin-top: 4px;
+      font: 600 11px var(--wr-mono);
+      color: var(--muted);
+      letter-spacing: .04em;
+    }
+
+    /* ---- Alerts grid (Incoming + Group Buy side by side) --------------- */
+    .wr-alerts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .wr-alerts-grid .alert-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    /* Recolor existing alert-card markup to match the orange theme */
+    .wr-alerts-grid .alert-card {
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-left: 3px solid var(--accent);
+      border-radius: 10px;
+      background: rgba(20, 20, 20, .85);
+      padding: 12px;
+    }
+
+    /* ---- Floor: leaderboard + live feed -------------------------------- */
+    .wr-floor {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .wr-leaderboard table { width: 100%; border-collapse: collapse; }
+    .wr-leaderboard th {
+      background: #0a0a0a;
+      color: var(--muted);
+      font: 900 10px var(--wr-mono);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      padding: 12px 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+    }
+    .wr-leaderboard td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, .04);
+      vertical-align: top;
+    }
+
+    /* Rank chip — gold/silver/bronze for top 3, then plain */
+    .rank-chip {
+      display: inline-grid;
+      place-items: center;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid rgba(255, 255, 255, .08);
+      color: var(--muted);
+      font: 900 12px var(--wr-mono);
+    }
+    .rank-chip[data-rank="1"] {
+      background: linear-gradient(135deg, rgba(255, 215, 0, .25), rgba(255, 102, 0, .25));
+      border-color: rgba(255, 215, 0, .65);
+      color: #ffd700;
+      box-shadow: 0 0 16px rgba(255, 215, 0, .35);
+    }
+    .rank-chip[data-rank="2"] {
+      background: rgba(220, 220, 220, .15);
+      border-color: rgba(220, 220, 220, .55);
+      color: #e0e0e0;
+    }
+    .rank-chip[data-rank="3"] {
+      background: rgba(205, 127, 50, .15);
+      border-color: rgba(205, 127, 50, .55);
+      color: #f6a96b;
+    }
+
+    /* Selected wallet row glow */
+    .wr-leaderboard tbody tr.wallet-row { transition: background .14s ease; cursor: pointer; }
+    .wr-leaderboard tbody tr.wallet-row:hover { background: rgba(255, 102, 0, .04); }
+    .wr-leaderboard tbody tr.wallet-row.selected {
+      background: rgba(255, 102, 0, .08);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    /* Reliability bar in the score column */
+    .score-box .bar {
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, .06);
+      overflow: hidden;
+      margin: 4px 0;
+    }
+    .score-box .bar > span {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-strong), var(--accent));
+      box-shadow: 0 0 12px rgba(255, 102, 0, .55);
+    }
+    .score-box .score-main {
+      font: 900 13px var(--wr-mono);
+      color: #fff;
+    }
+    .score-box .micro { color: var(--muted); }
+
+    /* Wallet avatar */
+    .wallet-line { display: inline-flex; gap: 10px; align-items: center; }
+    .wallet-avatar {
+      width: 32px; height: 32px;
+      display: grid; place-items: center;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 102, 0, .55);
+      background: rgba(255, 102, 0, .12);
+      color: var(--accent);
+      font: 900 10px var(--wr-mono);
+      flex-shrink: 0;
+    }
+    .wallet-line .wallet { font: 800 12px var(--wr-mono); color: #fff; }
+    .micro { font: 600 10px var(--wr-mono); color: var(--muted); letter-spacing: .04em; }
+
+    /* ---- Live feed ----------------------------------------------------- */
+    .wr-livefeed { padding: 18px; }
+    .wr-feed { max-height: 720px; overflow-y: auto; padding-right: 6px; }
+    .wr-feed::-webkit-scrollbar { width: 6px; }
+    .wr-feed::-webkit-scrollbar-thumb { background: rgba(255, 102, 0, .25); border-radius: 999px; }
+
+    .wr-livefeed .signal-card {
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-left: 3px solid var(--accent);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+      background: rgba(20, 20, 20, .85);
+    }
+    .wr-livefeed .signal-card::before {
+      content: "";
+      position: absolute;
+      left: -7px; top: 16px;
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    .wr-feed-tools { display: inline-flex; gap: 8px; align-items: center; }
+
+    /* ---- Auto-analysis queue ------------------------------------------- */
+    .wr-jobs .job-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .wr-jobs .job-card {
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 10px;
+      padding: 12px;
+      background: rgba(20, 20, 20, .85);
+    }
+
+    /* ---- Pills (status colors used by JS) ------------------------------ */
+    .pill, .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid currentColor;
+      font: 800 10px var(--wr-mono);
+      letter-spacing: .12em;
+    }
+
+    /* ---- Empty states -------------------------------------------------- */
+    .empty {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      font: 700 11px var(--wr-mono);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    /* ---- Responsive ---------------------------------------------------- */
+    @media (max-width: 1100px) {
+      .wr-radar-section { grid-template-columns: 1fr; }
+      .wr-alerts-grid { grid-template-columns: 1fr; }
+      .wr-floor { grid-template-columns: 1fr; }
+      .wr-radar-stage { grid-template-columns: 1fr; text-align: center; }
+      .wr-radar-orb { margin: 0 auto; }
+    }
+    @media (max-width: 720px) {
+      .wr-brand-bar { grid-template-columns: 1fr auto; padding: 10px 12px; height: auto; gap: 10px; }
+      .wr-nav { display: none; }
+      .wr-hud { grid-template-columns: 1fr 1fr; }
+    }
   </style>
 </head>
 <body>
-  <main class="shell">
-    <section class="topbar">
-      <div class="brand">
-        <div class="brand-mark">WR</div>
-        <div>
-          <h1>Whale Radar</h1>
-          <div class="subtitle">Elite wallets, live whale signals, and automatic token analysis in one practical board.</div>
+  <main class="wr-shell">
+
+    <!-- BRAND BAR -->
+    <header class="wr-brand-bar">
+      <div class="wr-brand">
+        <div class="wr-brand-mark">▲</div>
+        <div class="wr-brand-text">
+          <div class="wr-brand-name">WHALE RADAR</div>
+          <div class="wr-brand-tag">SMART MONEY · LIVE INTERCEPT</div>
         </div>
       </div>
-      <div class="actions">
-        <a href="/">Dashboard</a>
-        <button id="refreshButton" class="primary" type="button">Refresh</button>
-        <button id="auditButton" type="button">Audit Wallets</button>
-        <button id="priceButton" type="button">Refresh Prices</button>
-        <button id="survivalButton" type="button">Survival</button>
-        <button id="webhookButton" type="button">Sync Webhook</button>
+      <nav class="wr-nav" aria-label="Workspace">
+        <a class="wr-nav-link" href="/">DASHBOARD</a>
+        <a class="wr-nav-link is-active" href="/whale-radar">WHALE RADAR</a>
+      </nav>
+      <div class="wr-brand-right">
+        <div class="wr-pulse-state" id="systemStatusBadge"><span class="dot"></span><em id="systemStatus">Ready.</em></div>
       </div>
+    </header>
+
+    <!-- RADAR + COMMAND COLUMN -->
+    <section class="wr-radar-section">
+      <div class="wr-radar-card">
+        <div class="wr-radar-stage">
+          <div class="wr-radar-orb" aria-hidden="true">
+            <span class="wr-radar-sweep"></span>
+            <span class="wr-radar-ring r1"></span>
+            <span class="wr-radar-ring r2"></span>
+            <span class="wr-radar-ring r3"></span>
+            <span class="wr-radar-pip" id="radarPip"></span>
+          </div>
+          <div class="wr-radar-readout">
+            <div class="wr-readout-eyebrow">LAST INTERCEPT</div>
+            <div class="wr-readout-line" id="radarLastWallet">— · —</div>
+            <div class="wr-readout-meta" id="radarLastMeta">No live signal yet</div>
+          </div>
+        </div>
+        <div class="wr-radar-rings" id="webhookStatus" data-status="idle">
+          <div class="wr-pill"><span class="lbl">WEBHOOK</span><b id="webhookStatusValue">…</b></div>
+          <div class="wr-readout-meta" id="webhookNote">Connecting to Helius watcher…</div>
+        </div>
+      </div>
+
+      <aside class="wr-command-rail">
+        <div class="wr-command-title">COMMAND</div>
+        <button id="refreshButton" class="wr-cmd primary" type="button">⟳ REFRESH</button>
+        <button id="auditButton" class="wr-cmd" type="button">▦ AUDIT WALLETS</button>
+        <button id="priceButton" class="wr-cmd" type="button">$ REFRESH PRICES</button>
+        <button id="survivalButton" class="wr-cmd" type="button">◈ SURVIVAL PROFILE</button>
+        <button id="webhookButton" class="wr-cmd" type="button">⇆ SYNC WEBHOOK</button>
+      </aside>
     </section>
 
-    <section class="overview">
-      <article class="panel">
-        <div class="panel-head">
-          <div>
-            <div class="panel-title">Operations</div>
-            <div class="subtitle">What the whale engine is doing now, and whether the webhook watcher is connected.</div>
-          </div>
-        </div>
-        <div class="status-grid">
-          <div class="status-card">
-            <div class="status-title">System action</div>
-            <div class="status-value" id="systemStatus">Ready.</div>
-            <div class="status-note">Use the action buttons to audit wallets, refresh prices, profile survival, or sync Helius webhook watchers.</div>
-          </div>
-          <div class="status-card">
-            <div class="status-title">Webhook watcher</div>
-            <div class="status-value" id="webhookStatus">Loading...</div>
-            <div class="status-note" id="webhookNote">Live Feed receives BUY/SELL events from watched elite wallets.</div>
-          </div>
-        </div>
+    <!-- KPI STRIP -->
+    <section class="wr-hud" id="summaryGrid"></section>
+
+    <!-- ALERTS GRID -->
+    <section class="wr-alerts-grid">
+      <article class="wr-panel wr-incoming">
+        <header class="wr-panel-head">
+          <h2><i class="dot pulse"></i> INCOMING — High Signal Alerts</h2>
+          <div class="wr-panel-note" id="alertSubtitle">Important BUY / TOKEN_IN events after noise filtering.</div>
+        </header>
+        <div class="alert-grid" id="highSignalAlerts"></div>
       </article>
 
-      <section class="metric-grid" id="summaryGrid"></section>
+      <article class="wr-panel wr-confluence">
+        <header class="wr-panel-head">
+          <h2><i class="dot"></i> GROUP BUY — Token Confluence</h2>
+          <div class="wr-panel-note" id="confluenceSubtitle">Tokens entered by multiple watched wallets in the same window.</div>
+        </header>
+        <div class="alert-grid" id="confluenceAlerts"></div>
+      </article>
     </section>
 
-    <section class="panel" style="margin-bottom:14px;">
-      <div class="panel-head">
-        <div>
-          <div class="panel-title">High Signal Alerts</div>
-          <div class="subtitle" id="alertSubtitle">Important BUY/TOKEN_IN events after noise filtering.</div>
-        </div>
-      </div>
-      <div class="alert-grid" id="highSignalAlerts"></div>
-    </section>
-
-    <section class="panel" style="margin-bottom:14px;">
-      <div class="panel-head">
-        <div>
-          <div class="panel-title">Token Confluence</div>
-          <div class="subtitle" id="confluenceSubtitle">Tokens entered by multiple watched wallets in the same time window.</div>
-        </div>
-      </div>
-      <div class="alert-grid" id="confluenceAlerts"></div>
-    </section>
-
-    <section class="layout">
-      <article class="panel">
-        <div class="panel-head">
+    <!-- LEADERBOARD + LIVE FEED -->
+    <section class="wr-floor">
+      <article class="wr-panel wr-leaderboard">
+        <header class="wr-panel-head">
           <div>
-            <div class="panel-title">Elite Wallet Leaderboard</div>
-            <div class="subtitle">Wallets ranked by reliability, profit, survival behavior, and bot filtering.</div>
+            <h2><i class="dot"></i> ELITE LEADERBOARD</h2>
+            <div class="wr-panel-note">Click a wallet to filter the live feed</div>
           </div>
-        </div>
+          <div class="wr-leader-stats">
+            <span class="wr-pill"><span class="lbl">TRACKED</span><b id="leaderTotal">—</b></span>
+          </div>
+        </header>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
+                <th>#</th>
                 <th>Wallet</th>
-                <th>Identity</th>
                 <th>Reliability</th>
                 <th>Profit</th>
                 <th>Win Rate</th>
                 <th>Trades</th>
                 <th>ROI</th>
-                <th>Entry Speed</th>
+                <th>Entry</th>
                 <th>Survival</th>
-                <th>Behavior</th>
+                <th>Style</th>
                 <th>Security</th>
               </tr>
             </thead>
@@ -808,30 +1389,32 @@
         </div>
       </article>
 
-      <aside class="panel live-feed-panel">
-        <div class="panel-head">
+      <aside class="wr-panel wr-livefeed">
+        <header class="wr-panel-head">
           <div>
-            <div class="panel-title">Live Feed</div>
-            <div class="subtitle">New wallet movements captured by the Helius webhook. BUY/TOKEN_IN signals can queue token analysis automatically.</div>
+            <h2><i class="dot pulse"></i> LIVE FEED</h2>
+            <div class="wr-panel-note">Helius webhook events arrive here in real time.</div>
           </div>
-          <div class="feed-tools">
-            <span class="filter-chip" id="feedFilterLabel">All wallets</span>
-            <button class="clear-feed" id="clearFeedFilter" type="button">All</button>
+          <div class="feed-tools wr-feed-tools">
+            <span class="wr-pill" id="feedFilterLabel"><span class="lbl">FILTER</span><b>ALL WALLETS</b></span>
+            <button class="wr-cmd-ghost clear-feed" id="clearFeedFilter" type="button">CLEAR</button>
           </div>
-        </div>
-        <div class="feed live-feed-scroll" id="liveFeed"></div>
+        </header>
+        <div class="feed live-feed-scroll wr-feed" id="liveFeed"></div>
       </aside>
     </section>
 
-    <section class="panel" style="margin-top:14px;">
-      <div class="panel-head">
+    <!-- AUTO-ANALYSIS JOB QUEUE -->
+    <section class="wr-panel wr-jobs">
+      <header class="wr-panel-head">
         <div>
-          <div class="panel-title">Whale Signal Auto Analysis</div>
-          <div class="subtitle">Tokens queued when a safe tracked wallet buys. This shows whether the system analyzed, skipped, or failed the token.</div>
+          <h2><i class="dot"></i> AUTO-ANALYSIS QUEUE</h2>
+          <div class="wr-panel-note">Tokens queued when a safe tracked wallet buys.</div>
         </div>
-      </div>
+      </header>
       <div class="job-grid" id="signalJobs"></div>
     </section>
+
   </main>
 
   <script>
@@ -919,6 +1502,52 @@
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) return "N/A";
       return date.toLocaleString();
+    }
+
+    // Cute helper: convert an ISO timestamp into "12s / 4m / 1h ago"
+    // for the radar readout. Stays readable across hours without
+    // looking like a full datetime.
+    function timeAgo(value) {
+      if (!value) return "—";
+      const t = Date.parse(value);
+      if (Number.isNaN(t)) return "—";
+      const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+      if (s < 60) return `${s}s ago`;
+      if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+      if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+      return `${Math.floor(s / 86400)}d ago`;
+    }
+
+    // Update the big radar orb readout at the top of the page from the
+    // freshest signal. The pip flashes when the latest signal id changes.
+    let radarLastId = null;
+    const radarLastWalletEl = document.querySelector("#radarLastWallet");
+    const radarLastMetaEl = document.querySelector("#radarLastMeta");
+    const radarPipEl = document.querySelector("#radarPip");
+
+    function updateRadarReadout(signal) {
+      if (!signal) {
+        radarLastWalletEl.textContent = "— · —";
+        radarLastMetaEl.textContent = "No live signal yet";
+        return;
+      }
+      const wallet = shortWallet(signal.wallet_address || "");
+      const token = signal.token_symbol || signal.token_name || "—";
+      const type = String(signal.signal_type || "SIGNAL").toUpperCase();
+      const amount = signal.amount_sol ? `${money(signal.amount_sol)} SOL · ` : "";
+      radarLastWalletEl.textContent = `${wallet} · ${token}`;
+      radarLastMetaEl.textContent = `${type} · ${amount}${timeAgo(signal.signal_at)}`;
+      // Flash the pip when a new signal id appears so the user notices.
+      const id = signal.id ?? signal.signal_at;
+      if (id !== radarLastId) {
+        radarLastId = id;
+        if (radarPipEl) {
+          radarPipEl.classList.remove("flash");
+          // Force reflow then re-add so the animation restarts.
+          void radarPipEl.offsetWidth;
+          radarPipEl.classList.add("flash");
+        }
+      }
     }
 
     function jsonList(value) {
@@ -1082,17 +1711,20 @@
     }
 
     function renderLeaderboard(rows) {
+      const leaderTotalEl = document.querySelector("#leaderTotal");
+      if (leaderTotalEl) leaderTotalEl.textContent = String(rows.length);
       if (!rows.length) {
         leaderboardRows.innerHTML = `<tr><td class="empty" colspan="11">No elite wallets discovered yet. Run whale discovery after wallet intelligence has PnL data.</td></tr>`;
         return;
       }
 
-      leaderboardRows.innerHTML = rows.map((row) => {
+      leaderboardRows.innerHTML = rows.map((row, i) => {
         const score100 = numberOrNull(row.reliability_score) ?? 0;
         const score10 = numberOrNull(row.reliability_score_10) ?? (score100 / 10);
         const favorites = jsonList(row.favorite_token_symbols).slice(0, 3).join(", ");
         return `
           <tr class="wallet-row ${selectedWallet === row.wallet_address ? "selected" : ""}" data-wallet="${escapeHtml(row.wallet_address)}">
+            <td class="rank-cell"><span class="rank-chip" data-rank="${i + 1}">${i + 1}</span></td>
             <td>
               <div class="wallet-line">
                 <div class="wallet-avatar">${escapeHtml(initials(row.wallet_address))}</div>
@@ -1103,14 +1735,10 @@
                     ${walletDetailLink(row.wallet_address)}
                     ${solscanWalletLink(row.wallet_address)}
                   </div>
-                  <div class="micro">Seen ${escapeHtml(timeText(row.first_discovered_at))}</div>
+                  <div class="micro">
+                    <span class="badge ${badgeClass(row.label, row.bot_flag)}">${escapeHtml(row.label || "UNKNOWN")}</span>
+                  </div>
                 </div>
-              </div>
-            </td>
-            <td>
-              <div class="stack">
-                <span class="badge ${badgeClass(row.label, row.bot_flag)}">${escapeHtml(row.label || "UNKNOWN")}</span>
-                <div class="micro">${escapeHtml(row.bot_flag ? "Bot-excluded" : "Human-review candidate")}</div>
               </div>
             </td>
             <td>
@@ -1154,8 +1782,17 @@
     }
 
     function renderFeed(signals) {
-      feedFilterLabel.textContent = selectedWallet ? shortWallet(selectedWallet) : "All wallets";
+      const filterValueEl = feedFilterLabel.querySelector("b");
+      if (filterValueEl) {
+        filterValueEl.textContent = selectedWallet ? shortWallet(selectedWallet) : "ALL WALLETS";
+      } else {
+        feedFilterLabel.textContent = selectedWallet ? shortWallet(selectedWallet) : "All wallets";
+      }
       clearFeedFilter.style.display = selectedWallet ? "inline-flex" : "none";
+
+      // Update the radar readout with the freshest signal so the orb at
+      // the top of the page becomes a live "last intercept" display.
+      updateRadarReadout(signals[0] || null);
 
       if (!signals.length) {
         liveFeed.innerHTML = selectedWallet
@@ -1373,12 +2010,16 @@
 
       const webhook = data.webhook;
       if (webhook) {
-        webhookStatus.textContent = `${webhook.status || "UNKNOWN"} | ${webhook.watched_wallets || 0} wallets`;
+        const valueEl = document.querySelector("#webhookStatusValue") || webhookStatus;
+        valueEl.textContent = `${webhook.status || "UNKNOWN"} · ${webhook.watched_wallets || 0}`;
+        webhookStatus.dataset.status = webhook.active ? "active" : (webhook.status || "idle").toLowerCase();
         webhookNote.textContent = webhook.last_error
           ? `Last error: ${webhook.last_error}`
           : `Updated ${timeText(webhook.updated_at)}. Active: ${webhook.active ? "yes" : "no"}.`;
       } else {
-        webhookStatus.textContent = "Not configured";
+        const valueEl = document.querySelector("#webhookStatusValue") || webhookStatus;
+        valueEl.textContent = "NOT CONFIGURED";
+        webhookStatus.dataset.status = "missing";
         webhookNote.textContent = "Set Helius webhook credentials and run Sync Webhook.";
       }
     }
