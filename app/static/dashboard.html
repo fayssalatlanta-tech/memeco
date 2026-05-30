@@ -2378,189 +2378,892 @@
         display: none;
       }
     }
+
+    /* ================================================================
+       COMMAND BRIDGE LAYOUT — full visual override on top of the legacy
+       stylesheet. Black canvas, neon-orange accents, monospaced data,
+       horizontal HUD strip, no sidebar, table as primary surface.
+       ================================================================ */
+
+    :root {
+      --rail-h: 56px;
+      --hud-h: 96px;
+      --gutter: 18px;
+      --edge: 22px;
+      --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    body {
+      background:
+        radial-gradient(1200px 600px at 100% -10%, rgba(255, 102, 0, .10), transparent 55%),
+        radial-gradient(900px 600px at -10% 110%, rgba(255, 136, 0, .055), transparent 55%),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, .015) 0 1px, transparent 1px 96px),
+        #000;
+      letter-spacing: .005em;
+    }
+
+    /* ---- Layout shell --------------------------------------------------- */
+    .cb-shell {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--gutter);
+      padding: 16px var(--edge) 36px;
+      max-width: 1640px;
+      margin: 0 auto;
+      min-height: 100vh;
+    }
+
+    /* The legacy app-shell/sidebar/dashboard-main wrappers are not rendered
+       in the new markup at all, so no override is needed for them. */
+
+    /* ---- Brand bar (top) ------------------------------------------------ */
+    .cb-brand-bar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      display: grid;
+      grid-template-columns: minmax(220px, auto) 1fr minmax(220px, auto);
+      align-items: center;
+      gap: 18px;
+      height: var(--rail-h);
+      padding: 0 14px;
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 10px;
+      background: rgba(8, 8, 10, .72);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, .55);
+    }
+
+    .cb-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .cb-brand-mark {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 102, 0, .55);
+      border-radius: 6px;
+      background: rgba(255, 102, 0, .14);
+      color: var(--accent);
+      font-weight: 900;
+      font-size: 14px;
+      box-shadow: 0 0 18px rgba(255, 102, 0, .35);
+    }
+
+    .cb-brand-name {
+      font: 900 13px var(--mono);
+      letter-spacing: .26em;
+      color: #ffffff;
+      line-height: 1;
+    }
+
+    .cb-brand-tag {
+      margin-top: 3px;
+      font: 800 9px var(--mono);
+      letter-spacing: .26em;
+      color: var(--muted);
+    }
+
+    .cb-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 16px;
+      justify-self: center;
+      font: 800 11px var(--mono);
+      letter-spacing: .22em;
+    }
+
+    .cb-nav-link {
+      position: relative;
+      padding: 8px 4px;
+      color: var(--muted);
+      transition: color .14s ease;
+    }
+
+    .cb-nav-link:hover { color: #ffffff; }
+
+    .cb-nav-link.is-active {
+      color: var(--accent);
+    }
+
+    .cb-nav-link.is-active::after {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; bottom: -2px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+
+    .cb-nav-sep {
+      width: 1px; height: 18px;
+      background: rgba(255, 255, 255, .12);
+    }
+
+    .cb-nav-stat {
+      color: #ffffff;
+      letter-spacing: .18em;
+    }
+    .cb-nav-stat em {
+      font-style: normal;
+      color: var(--accent);
+      margin-right: 6px;
+    }
+    .cb-nav-stat.danger em { color: var(--reject); }
+
+    .cb-brand-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      justify-self: end;
+    }
+
+    /* ---- Command rail (search + actions) -------------------------------- */
+    .cb-command-rail {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .cb-search {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px 0 6px;
+      height: 52px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 12px;
+      background: rgba(18, 18, 18, .72);
+      backdrop-filter: blur(12px);
+      transition: border-color .14s ease, box-shadow .14s ease;
+    }
+
+    .cb-search:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(255, 102, 0, .14), 0 0 28px rgba(255, 102, 0, .18);
+    }
+
+    .cb-search-prompt {
+      justify-self: center;
+      color: var(--accent);
+      font: 900 18px var(--mono);
+      line-height: 1;
+      text-shadow: 0 0 12px rgba(255, 102, 0, .55);
+    }
+
+    .cb-search input {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: transparent;
+      color: #ffffff;
+      font: 700 14px var(--mono);
+      letter-spacing: .04em;
+      padding: 0;
+    }
+    .cb-search input::placeholder {
+      color: rgba(255, 255, 255, .35);
+      letter-spacing: .14em;
+      font-size: 12px;
+    }
+    .cb-search input:focus { outline: none; }
+
+    .cb-cta,
+    .cb-cta-secondary {
+      height: 40px;
+      padding: 0 18px;
+      border-radius: 8px;
+      font: 900 11px var(--mono);
+      letter-spacing: .22em;
+      cursor: pointer;
+      box-shadow: none;
+      transition: transform .14s ease, box-shadow .14s ease, background .14s ease;
+    }
+
+    .cb-cta {
+      border: 1px solid var(--accent);
+      background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+      color: #000;
+      box-shadow: 0 0 0 1px rgba(255, 102, 0, .35), 0 18px 40px -12px rgba(255, 102, 0, .55);
+    }
+
+    .cb-cta:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 0 1px var(--accent), 0 22px 48px -12px rgba(255, 102, 0, .75);
+    }
+
+    .cb-cta-secondary {
+      border: 1px solid rgba(255, 102, 0, .45);
+      background: rgba(255, 102, 0, .08);
+      color: var(--accent);
+    }
+
+    .cb-cta-secondary:hover {
+      background: rgba(255, 102, 0, .14);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .cb-rail-actions {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .cb-icon-btn {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      background: rgba(255, 255, 255, .03);
+      color: var(--muted);
+      font: 900 14px var(--mono);
+      cursor: pointer;
+      transition: color .14s ease, border-color .14s ease, background .14s ease;
+      box-shadow: none;
+    }
+
+    .cb-icon-btn:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: rgba(255, 102, 0, .08);
+      transform: none;
+    }
+
+    /* ---- HUD: KPI tile strip ------------------------------------------- */
+    .cb-hud {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1px;
+      background: rgba(255, 255, 255, .06);
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 12px;
+      overflow: hidden;
+      min-height: var(--hud-h);
+    }
+
+    .cb-hud > * {
+      padding: 18px 20px;
+      background: linear-gradient(180deg, rgba(20, 20, 20, .92), rgba(12, 12, 12, .92));
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cb-hud > *::before {
+      content: "";
+      position: absolute; left: 0; top: 0; bottom: 0;
+      width: 2px;
+      background: var(--accent);
+      opacity: .5;
+    }
+
+    /* legacy summary children come from JS as <article class="metric"> */
+    .cb-hud .metric {
+      display: block;
+      border: none;
+      background: transparent;
+      padding: 0;
+      box-shadow: none;
+    }
+
+    .cb-hud .metric .label {
+      font: 800 9px var(--mono);
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .cb-hud .metric .value {
+      font: 900 28px var(--mono);
+      color: #ffffff;
+      line-height: 1;
+      letter-spacing: .02em;
+      text-shadow: 0 0 24px rgba(255, 102, 0, .35);
+    }
+
+    /* ---- Scan ticker (full-width horizontal) --------------------------- */
+    .cb-ticker {
+      border: 1px solid rgba(255, 255, 255, .07);
+      border-radius: 12px;
+      background: rgba(14, 14, 14, .82);
+      backdrop-filter: blur(12px);
+      padding: 14px 18px;
+    }
+
+    .cb-ticker-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .cb-ticker-eyebrow {
+      font: 800 11px var(--mono);
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .cb-ticker-time {
+      margin-top: 4px;
+      font: 600 11px var(--mono);
+      color: var(--muted);
+    }
+
+    /* Linear load meter (replaces the old speedometer) */
+    .cb-load {
+      display: grid;
+      grid-template-columns: 220px auto;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .cb-load-track {
+      position: relative;
+      height: 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .05);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    .cb-load-fill {
+      height: 100%;
+      width: calc(min(100%, 0%));
+      background: linear-gradient(90deg, var(--accent-strong), var(--accent));
+      box-shadow: 0 0 18px rgba(255, 102, 0, .55);
+      transition: width .35s ease;
+    }
+
+    /* Reuse the old --load-deg variable: convert 0-180deg to 0-100% width */
+    .cb-load-fill[style*="--load-deg"] {
+      width: calc((var(--load-deg, 0deg) / 180deg) * 100%);
+    }
+
+    .cb-load-needle {
+      position: absolute;
+      top: 50%; right: 6px;
+      transform: translateY(-50%);
+      font: 900 10px var(--mono);
+      color: #fff;
+      letter-spacing: .08em;
+    }
+
+    .cb-load-status {
+      font: 900 11px var(--mono);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+
+    .cb-load-hint {
+      margin-top: 2px;
+      font: 600 11px var(--mono);
+      color: var(--muted);
+      max-width: 280px;
+    }
+
+    .cb-ticker-rail {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .cb-ticker-rail::-webkit-scrollbar { height: 6px; }
+    .cb-ticker-rail::-webkit-scrollbar-thumb {
+      background: rgba(255, 102, 0, .25);
+      border-radius: 999px;
+    }
+
+    /* JS injects .scan-step children */
+    .cb-ticker-rail .scan-step {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .03);
+      font: 700 11px var(--mono);
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+
+    .cb-ticker-rail .scan-step .scan-step-name {
+      color: #fff;
+      font-weight: 800;
+    }
+
+    .cb-ticker-rail .scan-step .scan-step-detail {
+      color: var(--muted);
+      margin-left: 6px;
+      font-weight: 600;
+    }
+
+    .cb-ticker-error {
+      margin-top: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 77, 94, .35);
+      background: rgba(255, 77, 94, .08);
+      color: var(--reject);
+      font: 600 12px var(--mono);
+    }
+    .cb-ticker-error:empty { display: none; }
+
+    /* ---- Filter bar (horizontal chips) --------------------------------- */
+    .cb-filter-bar {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .cb-filter-label {
+      font: 900 11px var(--mono);
+      letter-spacing: .26em;
+      color: var(--accent);
+      padding: 0 4px;
+    }
+
+    .cb-filter-bar .filter-chip-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 0;
+    }
+
+    /* override legacy filter-chip pill look with a sharp "tag" */
+    .cb-filter-bar .filter-chip {
+      height: 30px;
+      padding: 0 12px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, .025);
+      color: var(--muted);
+      font: 800 10px var(--mono);
+      letter-spacing: .14em;
+    }
+
+    .cb-filter-bar .filter-chip:hover {
+      border-color: rgba(255, 102, 0, .45);
+      background: rgba(255, 102, 0, .06);
+      color: #fff;
+    }
+
+    .cb-filter-bar .filter-chip[aria-pressed="true"] {
+      border-color: var(--accent);
+      background: rgba(255, 102, 0, .14);
+      color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(255, 102, 0, .25), 0 0 18px rgba(255, 102, 0, .15);
+    }
+
+    .cb-filter-tools {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .cb-filter-stats {
+      display: inline-flex;
+      gap: 14px;
+      font: 700 10px var(--mono);
+      letter-spacing: .14em;
+      color: var(--muted);
+    }
+
+    .cb-filter-stats .side-stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cb-filter-stats .side-stat .label { color: var(--muted); text-transform: uppercase; }
+    .cb-filter-stats .side-stat .value { color: #fff; font-weight: 900; }
+
+    .density-toggle.cb-icon-btn {
+      width: auto;
+      padding: 0 14px;
+      letter-spacing: .22em;
+      font-size: 10px;
+    }
+
+    /* ---- Hero opportunity ---------------------------------------------- */
+    .cb-hero {
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 14px;
+      padding: 22px 24px;
+      background:
+        radial-gradient(800px 220px at 80% 0%, rgba(255, 102, 0, .14), transparent 55%),
+        linear-gradient(180deg, rgba(20, 20, 20, .9), rgba(8, 8, 8, .92));
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cb-hero::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 0, rgba(255, 102, 0, .02) 50%, transparent 100%);
+      pointer-events: none;
+    }
+
+    .cb-hero:empty { display: none; }
+
+    /* ---- Opportunity grid section -------------------------------------- */
+    .cb-opportunity {
+      display: grid;
+      gap: 12px;
+    }
+
+    .cb-section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .cb-section-head h2 {
+      margin: 0;
+      font: 900 12px var(--mono);
+      letter-spacing: .26em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+
+    .cb-section-head h2::before {
+      content: "■";
+      color: var(--accent);
+      margin-right: 10px;
+      text-shadow: 0 0 10px var(--accent);
+    }
+
+    .cb-section-note {
+      font: 600 11px var(--mono);
+      letter-spacing: .04em;
+      color: var(--muted);
+    }
+
+    .cb-opportunity .opportunity-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+
+    .cb-opportunity .opportunity-card {
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 12px;
+      padding: 16px;
+      background: linear-gradient(180deg, rgba(20, 20, 20, .9), rgba(10, 10, 10, .92));
+      transition: border-color .14s ease, transform .14s ease;
+    }
+    .cb-opportunity .opportunity-card:hover {
+      border-color: rgba(255, 102, 0, .45);
+      transform: translateY(-1px);
+    }
+
+    /* ---- Decision table ------------------------------------------------ */
+    .cb-table-card {
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 14px;
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(14, 14, 14, .92), rgba(8, 8, 8, .94));
+    }
+
+    .cb-table-card .table-head {
+      padding: 14px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, .06);
+      background: linear-gradient(180deg, rgba(22, 22, 22, .9), rgba(14, 14, 14, .9));
+    }
+
+    .cb-table-count {
+      font: 900 11px var(--mono);
+      letter-spacing: .22em;
+      color: var(--accent);
+      padding: 6px 10px;
+      border: 1px solid rgba(255, 102, 0, .35);
+      border-radius: 999px;
+      background: rgba(255, 102, 0, .08);
+    }
+
+    .cb-table-card table th {
+      background: #0a0a0a;
+      color: var(--muted) !important;
+      font: 900 10px var(--mono);
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    .cb-table-card table th.sortable:hover {
+      color: var(--accent) !important;
+    }
+
+    .cb-table-card tbody td {
+      padding: 14px;
+      vertical-align: middle;
+      border-bottom: 1px solid rgba(255, 255, 255, .04);
+      background: transparent;
+      position: relative;
+    }
+
+    /* Edge stripe = decision tone, applied to first cell of each row */
+    .cb-table-card tbody tr td:first-child::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 6px; bottom: 6px;
+      width: 3px;
+      background: var(--accent);
+      opacity: .25;
+      border-radius: 2px;
+      transition: opacity .14s ease, box-shadow .14s ease;
+    }
+
+    .cb-table-card tbody tr:hover td:first-child::before {
+      opacity: 1;
+      box-shadow: 0 0 14px var(--accent);
+    }
+
+    /* Stripe color flips by data-decision-tone — JS already adds class
+       based on final_watchlist_status; the badgeClass helper produces
+       .pass/.warn/.fail variants. We tag the row in JS via class names. */
+
+    .cb-table-card tbody tr:hover {
+      background: rgba(255, 102, 0, .04);
+    }
+
+    /* ---- Decision drawer override --------------------------------------- */
+    .decision-drawer {
+      width: 420px;
+      max-width: calc(100vw - 36px);
+      padding: 20px;
+      border: 1px solid rgba(255, 102, 0, .35);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(14, 14, 14, .92), rgba(8, 8, 8, .96));
+      backdrop-filter: blur(18px);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, .7), 0 0 0 1px rgba(255, 102, 0, .12);
+    }
+
+    .decision-drawer .drawer-symbol { font: 900 18px var(--mono); }
+    .decision-drawer .drawer-title { font: 900 10px var(--mono); letter-spacing: .26em; }
+
+    /* ---- Cheat-sheet ---------------------------------------------------- */
+    .kbd-cheatsheet-card {
+      border: 1px solid rgba(255, 102, 0, .35);
+      background: rgba(10, 10, 10, .96);
+    }
+
+    /* ---- Filter chips (legacy pill look gets the new sharp look too) ---- */
+    .filter-chip {
+      border-radius: 6px !important;
+    }
+
+    /* ---- Compact density tweaks for the new layout --------------------- */
+    body.density-compact .cb-hud > * { padding: 12px 16px; }
+    body.density-compact .cb-hud .metric .value { font-size: 22px; }
+
+    /* ---- Responsive ----------------------------------------------------- */
+    @media (max-width: 980px) {
+      .cb-shell { padding: 12px 12px 28px; }
+      .cb-brand-bar {
+        grid-template-columns: 1fr auto;
+        height: auto;
+        padding: 10px 12px;
+        gap: 10px;
+      }
+      .cb-nav { display: none; }
+      .cb-command-rail { grid-template-columns: 1fr; }
+      .cb-rail-actions { justify-content: flex-end; }
+      .cb-load { grid-template-columns: 1fr; }
+      .cb-filter-bar {
+        grid-template-columns: 1fr;
+      }
+      .cb-filter-label { font-size: 10px; }
+    }
+
+    @media (max-width: 640px) {
+      .cb-search { grid-template-columns: 24px 1fr; }
+      .cb-search .cb-cta { grid-column: 1 / -1; }
+      .cb-hud { grid-template-columns: 1fr 1fr; }
+    }
   </style>
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div>
-        <div class="brand">
-          <div class="brand-mark">Q</div>
-          <div>
-            <div class="brand-name">Quant Watchlist</div>
-            <div class="brand-subtitle">Memecoin intelligence</div>
-          </div>
-        </div>
+  <div class="cb-shell">
 
-        <div class="side-section nav-section">
-          <p class="side-label">Workspace</p>
-          <div class="nav-item active"><span>Dashboard</span><span class="nav-badge">Live</span></div>
-          <a class="nav-item" href="/whale-radar"><span>Whale Radar</span><span class="nav-badge">New</span></a>
-          <div class="nav-item"><span>Opportunities</span><span class="nav-badge" id="sideOpportunityCount">0</span></div>
-          <div class="nav-item"><span>Risk Review</span><span class="nav-badge" id="sideRiskCount">0</span></div>
-          <div class="nav-item"><span>Manual Scan</span><span class="nav-badge">API</span></div>
+    <!-- Top brand strip -->
+    <header class="cb-brand-bar">
+      <div class="cb-brand">
+        <div class="cb-brand-mark">▲</div>
+        <div class="cb-brand-text">
+          <div class="cb-brand-name">MEMECO</div>
+          <div class="cb-brand-tag">QUANT INTELLIGENCE</div>
         </div>
       </div>
-
-      <div>
-        <div class="side-section">
-          <p class="side-label">Decision Filter</p>
-          <div class="side-card">
-            <div class="scan-stage">Toggle one or many statuses. Cards above keep the best opportunities visible.</div>
-            <div
-              class="filter-chip-group"
-              id="statusFilter"
-              role="group"
-              aria-label="Filter watchlist by decision status"
-            >
-              <button type="button" class="filter-chip" data-status="" aria-pressed="true">All decisions</button>
-              <button type="button" class="filter-chip starred" data-filter="starred" aria-pressed="false" title="Show only locally-starred tokens">★ Starred</button>
-              <button type="button" class="filter-chip pass" data-status="WATCHLIST_PASS" aria-pressed="false">Pass</button>
-              <button type="button" class="filter-chip pass" data-status="WATCHLIST_PASS_HIGH_RISK" aria-pressed="false">Pass · High Risk</button>
-              <button type="button" class="filter-chip review" data-status="WATCHLIST_REVIEW" aria-pressed="false">Review</button>
-              <button type="button" class="filter-chip wait" data-status="WATCHLIST_WAIT_SECURITY_DATA" aria-pressed="false">Wait · Security</button>
-              <button type="button" class="filter-chip wait" data-status="WATCHLIST_WAIT_LIQUIDITY" aria-pressed="false">Wait · Liquidity</button>
-              <button type="button" class="filter-chip reject" data-status="WATCHLIST_REJECT_MARKET" aria-pressed="false">Reject · Market</button>
-              <button type="button" class="filter-chip reject" data-status="WATCHLIST_REJECT_CONTRACT_RISK" aria-pressed="false">Reject · Contract</button>
-              <button type="button" class="filter-chip reject" data-status="WATCHLIST_REJECT_LIQUIDITY" aria-pressed="false">Reject · Liquidity</button>
-            </div>
-            <div class="side-stats" id="sideStats"></div>
-          </div>
+      <nav class="cb-nav" aria-label="Workspace">
+        <a class="cb-nav-link is-active" href="/">DASHBOARD</a>
+        <a class="cb-nav-link" href="/whale-radar">WHALE RADAR</a>
+        <span class="cb-nav-sep" aria-hidden="true"></span>
+        <span class="cb-nav-stat"><em id="sideOpportunityCount">0</em> OPP</span>
+        <span class="cb-nav-stat danger"><em id="sideRiskCount">0</em> RISK</span>
+      </nav>
+      <div class="cb-brand-right">
+        <div class="status-note" id="statusNote" aria-live="polite">
+          <span class="live-dot" id="liveDot" title="Live updates"></span>
+          <span class="freshness" id="freshness">Loading...</span>
         </div>
-
-        <div class="side-card upgrade-card">
-          <div class="section-title">Analysis Engine</div>
-          <div class="scan-stage" style="margin-top: 8px;">Market, contract, liquidity, wallets, clusters, developer audit, and insider probability in one flow.</div>
-        </div>
+        <button
+          id="kbdHelpButton"
+          type="button"
+          class="cb-icon-btn"
+          title="Keyboard shortcuts (?)"
+          aria-label="Show keyboard shortcuts"
+        >?</button>
       </div>
-    </aside>
+    </header>
 
-    <main class="dashboard-main">
-      <section class="topbar">
+    <!-- Command rail: search + global actions -->
+    <section class="cb-command-rail">
+      <form class="cb-search" id="manualAnalyzeForm">
+        <span class="cb-search-prompt" aria-hidden="true">›</span>
+        <input
+          id="manualTokenInput"
+          type="text"
+          placeholder="ANALYZE › paste Solana mint address"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Solana token address"
+        >
+        <button id="manualAnalyzeButton" type="submit" class="cb-cta">EXECUTE</button>
+      </form>
+      <div class="cb-rail-actions">
+        <button id="scanButton" type="button" class="cb-cta-secondary">RUN SCAN</button>
+        <button id="refreshButton" type="button" class="cb-icon-btn" title="Refresh" aria-label="Refresh">⟳</button>
         <button
           id="sidebarToggle"
           type="button"
-          class="secondary-button sidebar-toggle"
-          aria-label="Toggle sidebar"
+          class="cb-icon-btn"
+          aria-label="Toggle filters"
           aria-expanded="true"
-          title="Toggle sidebar"
+          title="Toggle filters"
         >☰</button>
-        <div class="top-title">
-          <h1>Top Token Opportunities</h1>
-          <div class="subtitle">Fresh decisions, safety signals, and wallet intelligence.</div>
-        </div>
-        <div class="top-actions">
-          <form class="manual-analyze" id="manualAnalyzeForm">
-            <input
-              id="manualTokenInput"
-              type="text"
-              placeholder="Paste Solana token address"
-              autocomplete="off"
-              spellcheck="false"
-              aria-label="Solana token address"
-            >
-            <button id="manualAnalyzeButton" type="submit">Analyze</button>
-          </form>
-          <button id="scanButton" type="button">Run Scan</button>
-          <button id="refreshButton" type="button" class="secondary-button">Refresh</button>
-          <button
-            id="kbdHelpButton"
-            type="button"
-            class="secondary-button kbd-help-button"
-            title="Keyboard shortcuts (?)"
-            aria-label="Show keyboard shortcuts"
-          >?</button>
-          <div class="status-note" id="statusNote" aria-live="polite">
-            <span class="live-dot" id="liveDot" title="Live updates"></span>
-            <span class="freshness" id="freshness">Loading...</span>
-          </div>
-        </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="summary" id="summary"></section>
+    <!-- HUD strip: KPI tiles -->
+    <section class="cb-hud" id="summary"></section>
 
-      <section class="dashboard-grid">
-        <article class="hero-card" id="heroOpportunity"></article>
-        <aside class="scan-panel">
-          <div class="scan-panel-head">
-            <div>
-              <div class="scan-title">Scan Monitor</div>
-              <div class="scan-stage" id="scanNote">Scan status: idle</div>
-            </div>
-            <div class="scan-stage" id="scanTime"></div>
-          </div>
-          <div class="system-load light" id="systemLoadMeter">
-            <div class="load-gauge" id="loadGauge" aria-hidden="true">
-              <div class="load-pivot"></div>
-              <div class="load-scale"><span>Light</span><span>Heavy</span></div>
-            </div>
-            <div class="load-readout">
-              <div class="load-label">System Load</div>
-              <div class="load-value" id="loadValue">8%</div>
-              <div class="load-status" id="loadStatus">Light</div>
-              <div class="load-hint" id="loadHint">No active scan. Dashboard is only reading cached results.</div>
-            </div>
-          </div>
-          <div class="scan-steps" id="scanSteps"></div>
-          <div class="scan-error" id="scanError"></div>
-        </aside>
-      </section>
-
-      <section class="opportunity-panel">
-        <div class="section-head">
-          <div>
-            <div class="section-title">Opportunity Cards</div>
-            <div class="section-note">Best available candidates are ranked before rejected risk cases.</div>
-          </div>
-          <div class="section-note">Top 3</div>
+    <!-- Scan ticker (full-width, horizontal) -->
+    <section class="cb-ticker" id="scanTicker">
+      <div class="cb-ticker-head">
+        <div>
+          <div class="cb-ticker-eyebrow" id="scanNote">Scan status: idle</div>
+          <div class="cb-ticker-time" id="scanTime"></div>
         </div>
-        <div class="opportunity-grid" id="opportunityGrid"></div>
-      </section>
-
-      <section class="table-card">
-        <div class="table-head">
-          <div>
-            <div class="table-title">Decision Stream</div>
-            <div class="table-note">Latest analyzed tokens remain first. Open a token for the full decision tree.</div>
+        <div class="cb-load" id="systemLoadMeter">
+          <div class="cb-load-track">
+            <div class="cb-load-fill" id="loadGauge" style="--load-deg: 0deg;"></div>
+            <span class="cb-load-needle" id="loadValue">0%</span>
           </div>
-          <div class="table-tools">
-            <button
-              type="button"
-              id="densityToggle"
-              class="secondary-button density-toggle"
-              aria-pressed="false"
-              title="Toggle compact / comfy density"
-            >Compact</button>
-            <div class="table-note" id="tableCount">0 tokens</div>
+          <div class="cb-load-text">
+            <div class="cb-load-status" id="loadStatus">Light</div>
+            <div class="cb-load-hint" id="loadHint">No active scan.</div>
           </div>
         </div>
-        <div class="table-wrap">
-          <table>
-            <colgroup>
-              <col class="token-col">
-              <col class="opportunity-col">
-              <col class="safety-col">
-              <col class="liquidity-col">
-              <col class="wallet-col">
-              <col class="decision-col">
-              <col class="updated-col">
-            </colgroup>
-            <thead>
-              <tr>
-                <th class="sortable" data-sort-key="symbol">Token<span class="sort-arrow" aria-hidden="true">↕</span></th>
-                <th class="sortable" data-sort-key="opportunity">Opportunity<span class="sort-arrow" aria-hidden="true">↕</span></th>
-                <th class="sortable" data-sort-key="safety">Safety<span class="sort-arrow" aria-hidden="true">↕</span></th>
-                <th class="sortable" data-sort-key="liquidity">Liquidity<span class="sort-arrow" aria-hidden="true">↕</span></th>
-                <th class="sortable" data-sort-key="manipulation">Wallet Signals<span class="sort-arrow" aria-hidden="true">↕</span></th>
-                <th class="sortable" data-sort-key="decision">Decision<span class="sort-arrow" aria-hidden="true">↕</span></th>
-                <th class="sortable" data-sort-key="updated">Updated<span class="sort-arrow" aria-hidden="true">↕</span></th>
-              </tr>
-            </thead>
-            <tbody id="watchlistRows"></tbody>
-          </table>
+      </div>
+      <div class="cb-ticker-rail" id="scanSteps"></div>
+      <div class="cb-ticker-error scan-error" id="scanError"></div>
+    </section>
+
+    <!-- Filter bar (horizontal chip rail) -->
+    <section class="cb-filter-bar">
+      <div class="cb-filter-label">FILTER</div>
+      <div
+        class="filter-chip-group"
+        id="statusFilter"
+        role="group"
+        aria-label="Filter watchlist by decision status"
+      >
+        <button type="button" class="filter-chip" data-status="" aria-pressed="true">ALL</button>
+        <button type="button" class="filter-chip starred" data-filter="starred" aria-pressed="false" title="Show only locally-starred tokens">★ STARRED</button>
+        <button type="button" class="filter-chip pass" data-status="WATCHLIST_PASS" aria-pressed="false">PASS</button>
+        <button type="button" class="filter-chip pass" data-status="WATCHLIST_PASS_HIGH_RISK" aria-pressed="false">PASS · HIGH RISK</button>
+        <button type="button" class="filter-chip review" data-status="WATCHLIST_REVIEW" aria-pressed="false">REVIEW</button>
+        <button type="button" class="filter-chip wait" data-status="WATCHLIST_WAIT_SECURITY_DATA" aria-pressed="false">WAIT · SECURITY</button>
+        <button type="button" class="filter-chip wait" data-status="WATCHLIST_WAIT_LIQUIDITY" aria-pressed="false">WAIT · LIQUIDITY</button>
+        <button type="button" class="filter-chip reject" data-status="WATCHLIST_REJECT_MARKET" aria-pressed="false">REJECT · MARKET</button>
+        <button type="button" class="filter-chip reject" data-status="WATCHLIST_REJECT_CONTRACT_RISK" aria-pressed="false">REJECT · CONTRACT</button>
+        <button type="button" class="filter-chip reject" data-status="WATCHLIST_REJECT_LIQUIDITY" aria-pressed="false">REJECT · LIQUIDITY</button>
+      </div>
+      <div class="cb-filter-tools">
+        <div class="cb-filter-stats" id="sideStats"></div>
+        <button
+          type="button"
+          id="densityToggle"
+          class="cb-icon-btn density-toggle"
+          aria-pressed="false"
+          title="Toggle compact / comfy density"
+        >COMPACT</button>
+      </div>
+    </section>
+
+    <!-- Hero opportunity (one big featured card) -->
+    <section class="cb-hero hero-card" id="heroOpportunity"></section>
+
+    <!-- Opportunity grid: 3 picks side-by-side -->
+    <section class="cb-opportunity">
+      <header class="cb-section-head">
+        <h2>OPPORTUNITY GRID</h2>
+        <div class="cb-section-note">Top 3 — ranked before rejected risk cases</div>
+      </header>
+      <div class="opportunity-grid" id="opportunityGrid"></div>
+    </section>
+
+    <!-- The big table: Decision Stream -->
+    <section class="cb-table-card table-card">
+      <header class="table-head cb-section-head">
+        <div>
+          <h2>DECISION STREAM</h2>
+          <div class="cb-section-note">Latest analyzed first. Hover a row for the live decision tree.</div>
         </div>
-      </section>
-    </main>
+        <div class="table-tools">
+          <div class="table-note cb-table-count" id="tableCount">0 TOKENS</div>
+        </div>
+      </header>
+      <div class="table-wrap">
+        <table>
+          <colgroup>
+            <col class="token-col">
+            <col class="opportunity-col">
+            <col class="safety-col">
+            <col class="liquidity-col">
+            <col class="wallet-col">
+            <col class="decision-col">
+            <col class="updated-col">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="sortable" data-sort-key="symbol">Token<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="opportunity">Opportunity<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="safety">Safety<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="liquidity">Liquidity<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="manipulation">Wallet Signals<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="decision">Decision<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="updated">Updated<span class="sort-arrow" aria-hidden="true">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="watchlistRows"></tbody>
+        </table>
+      </div>
+    </section>
+
   </div>
 
   <aside
