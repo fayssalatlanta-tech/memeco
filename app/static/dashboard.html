@@ -3069,6 +3069,98 @@
     body.density-compact .cb-hud > * { padding: 12px 16px; }
     body.density-compact .cb-hud .metric .value { font-size: 22px; }
 
+    /* ---- Whale intercept ticker (top of page) -------------------------- */
+    /* Horizontal strip showing the last 3 high-signal whale events.
+       Polled lazily from /api/whale-radar; hidden when empty. */
+    .cb-whale-ticker {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 14px;
+      align-items: center;
+      padding: 8px 14px;
+      border: 1px solid rgba(255, 102, 0, .35);
+      border-radius: 10px;
+      background:
+        linear-gradient(90deg, rgba(255, 102, 0, .10), transparent 35%, transparent 65%, rgba(255, 102, 0, .10)),
+        rgba(10, 10, 10, .85);
+      box-shadow: 0 0 0 1px rgba(255, 102, 0, .12);
+      overflow: hidden;
+    }
+    .cb-whale-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font: 900 10px var(--mono);
+      letter-spacing: .26em;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .cb-whale-eyebrow .dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+    .cb-whale-eyebrow .dot.pulse {
+      animation: cbWhalePulse 1.6s ease-in-out infinite;
+    }
+    @keyframes cbWhalePulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .55; transform: scale(.85); }
+    }
+    .cb-whale-rail {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      overflow: hidden;
+    }
+    .cb-whale-card {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .03);
+      font: 700 11px var(--mono);
+      letter-spacing: .04em;
+      color: var(--muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+      animation: cbWhaleSlide .4s ease-out;
+    }
+    .cb-whale-card strong { color: #fff; font-weight: 900; }
+    .cb-whale-card .type {
+      color: var(--accent);
+      font-weight: 900;
+      letter-spacing: .12em;
+    }
+    .cb-whale-card .ago { color: var(--muted); }
+    .cb-whale-card a { color: inherit; }
+    .cb-whale-card a:hover { color: var(--accent); }
+    @keyframes cbWhaleSlide {
+      from { transform: translateX(20px); opacity: 0; }
+      to   { transform: translateX(0); opacity: 1; }
+    }
+    .cb-whale-link {
+      font: 900 10px var(--mono);
+      letter-spacing: .22em;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .cb-whale-link:hover { color: #fff; }
+
+    @media (max-width: 760px) {
+      .cb-whale-ticker { grid-template-columns: 1fr; }
+      .cb-whale-rail { overflow-x: auto; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .cb-whale-eyebrow .dot.pulse { animation: none; }
+      .cb-whale-card { animation: none; }
+    }
+
     /* ================================================================
        SIGNAL FLOOR — table card extras: live header, view modes,
        inline signal-chain barcode, tape feed, cockpit grid.
@@ -3429,6 +3521,7 @@
       <nav class="cb-nav" aria-label="Workspace">
         <a class="cb-nav-link is-active" href="/">DASHBOARD</a>
         <a class="cb-nav-link" href="/whale-radar">WHALE RADAR</a>
+        <a class="cb-nav-link" href="/system">SYSTEM</a>
         <span class="cb-nav-sep" aria-hidden="true"></span>
         <span class="cb-nav-stat"><em id="sideOpportunityCount">0</em> OPP</span>
         <span class="cb-nav-stat danger"><em id="sideRiskCount">0</em> RISK</span>
@@ -3447,6 +3540,13 @@
         >?</button>
       </div>
     </header>
+
+    <!-- Whale ticker (last 3 high-signal events) -->
+    <section class="cb-whale-ticker" id="whaleTicker" hidden>
+      <div class="cb-whale-eyebrow"><i class="dot pulse"></i>WHALE INTERCEPT</div>
+      <div class="cb-whale-rail" id="whaleTickerRail"></div>
+      <a class="cb-whale-link" href="/whale-radar">RADAR →</a>
+    </section>
 
     <!-- Command rail: search + global actions -->
     <section class="cb-command-rail">
@@ -4840,6 +4940,13 @@
         const prev = lastSeenStatus.get(addr);
         if (prev && prev.status && prev.status !== status) {
           activeFlips.set(addr, { from: prev.status, to: status, ts: now });
+          // Browser notification for starred tokens — gated on the
+          // user's localStorage opt-in. Skip on the very first render
+          // (when prev.ts is older than 30 min, the flip is most
+          // likely a re-warm rather than a real change).
+          if (isStarred(addr) && (now - (prev.ts || 0) < FLIP_TTL_MS * 8)) {
+            maybeNotifyStarFlip(row, prev.status, status);
+          }
         }
         lastSeenStatus.set(addr, { status, ts: now });
       });
@@ -4853,6 +4960,55 @@
       for (const [addr, info] of lastSeenStatus) {
         if (now - info.ts > STALE_MS) lastSeenStatus.delete(addr);
       }
+    }
+
+    // ---- Browser notifications for starred-token status flips ---------
+    //
+    // Pure-frontend feature. When a starred token's
+    // final_watchlist_status changes between two consecutive renders we
+    // fire a Notification (if the user has granted permission). The opt-
+    // in is one-time and stored in localStorage; nobody gets prompted
+    // out of the blue.
+
+    const NOTIFY_OPT_KEY = "memeco.notify.starred";
+
+    function ensureNotifyPermission() {
+      if (typeof Notification === "undefined") return Promise.resolve("unsupported");
+      if (Notification.permission === "granted") return Promise.resolve("granted");
+      if (Notification.permission === "denied")  return Promise.resolve("denied");
+      return Notification.requestPermission();
+    }
+
+    function notifyEnabled() {
+      try { return localStorage.getItem(NOTIFY_OPT_KEY) === "on"; } catch (e) { return false; }
+    }
+
+    function setNotifyEnabled(on) {
+      try { localStorage.setItem(NOTIFY_OPT_KEY, on ? "on" : "off"); } catch (e) {}
+    }
+
+    function maybeNotifyStarFlip(row, fromStatus, toStatus) {
+      if (!notifyEnabled()) return;
+      if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+      const dir = rankDecision(toStatus) > rankDecision(fromStatus) ? "↑" : "↓";
+      const symbol = row.symbol || row.name || (row.token_address || "").slice(0, 6);
+      try {
+        new Notification(`★ ${symbol}: ${dir} ${finalDecisionLabel(toStatus)}`, {
+          body: `Was ${finalDecisionLabel(fromStatus)} · ${row.final_watchlist_reason || "Status changed"}`,
+          tag: `memeco-flip-${row.token_address}`,
+          icon: row.logo_url || undefined,
+        });
+      } catch (e) { /* no-op */ }
+    }
+
+    // Star toggle UI piggybacks here: the first time a user stars a
+    // token we ask for Notification permission. They can disable later
+    // via the cheat-sheet (or the dev console: localStorage.setItem(
+    // 'memeco.notify.starred', 'off')).
+    async function promptNotifyOnFirstStar() {
+      if (notifyEnabled()) return;
+      const permission = await ensureNotifyPermission();
+      if (permission === "granted") setNotifyEnabled(true);
     }
 
     function decisionFlipBadge(row) {
@@ -4911,6 +5067,10 @@
         starred.delete(address);
       } else {
         starred.add(address);
+        // First time the user stars something we offer to enable
+        // notifications for status flips. Future stars are silent
+        // because the opt-in is sticky.
+        promptNotifyOnFirstStar();
       }
       saveStarred();
       // Re-render so star markers, toolbar buttons, and the optional
@@ -5929,6 +6089,67 @@
     }
 
     connectScanEventStream();
+
+    // ---- Whale intercept ticker -----------------------------------------
+    //
+    // Polls /api/whale-radar every minute and shows the latest 3
+    // high-signal alerts as a strip below the brand bar. Strip stays
+    // hidden when there's nothing meaningful (no whale signals yet, or
+    // empty DB).
+
+    const whaleTickerEl = document.querySelector("#whaleTicker");
+    const whaleTickerRailEl = document.querySelector("#whaleTickerRail");
+    let whaleTickerSeenIds = new Set();
+
+    function timeAgoShort(value) {
+      if (!value) return "—";
+      const t = Date.parse(value);
+      if (Number.isNaN(t)) return "—";
+      const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+      if (s < 60)    return `${s}s`;
+      if (s < 3600)  return `${Math.floor(s / 60)}m`;
+      if (s < 86400) return `${Math.floor(s / 3600)}h`;
+      return `${Math.floor(s / 86400)}d`;
+    }
+
+    async function loadWhaleTicker() {
+      try {
+        const r = await fetch("/api/whale-radar?limit=10");
+        if (!r.ok) return;
+        const data = await r.json();
+        const alerts = (data.high_signal_alerts || []).slice(0, 3);
+        if (!alerts.length) {
+          whaleTickerEl.hidden = true;
+          return;
+        }
+        whaleTickerEl.hidden = false;
+        whaleTickerRailEl.innerHTML = alerts.map((a) => {
+          const walletAddr = a.wallet_address || "";
+          const wallet = walletAddr ? walletAddr.slice(0, 4) + "…" + walletAddr.slice(-4) : "—";
+          const token = a.token_symbol || a.token_name || "—";
+          const tokenAddr = a.token_address || "";
+          const type = String(a.signal_type || "BUY").toUpperCase();
+          const amount = a.amount_sol ? `${Number(a.amount_sol).toFixed(2)} SOL` : "";
+          const tokenLink = tokenAddr ? `https://solscan.io/token/${encodeURIComponent(tokenAddr)}` : "#";
+          return `
+            <div class="cb-whale-card" data-id="${a.id}">
+              <span class="type">${escapeHtml(type)}</span>
+              <strong><a href="${tokenLink}" target="_blank" rel="noopener noreferrer">${escapeHtml(token)}</a></strong>
+              <span>by <strong>${escapeHtml(wallet)}</strong></span>
+              ${amount ? `<span>· ${escapeHtml(amount)}</span>` : ""}
+              <span class="ago">· ${escapeHtml(timeAgoShort(a.signal_at))} ago</span>
+            </div>
+          `;
+        }).join("");
+        alerts.forEach((a) => whaleTickerSeenIds.add(a.id));
+      } catch (error) {
+        /* silent — ticker is non-critical */
+      }
+    }
+
+    loadWhaleTicker();
+    setInterval(loadWhaleTicker, 60_000);
+
     // 1 Hz tick for the "Updated Xs ago" label so it stays current
     // without re-fetching anything.
     freshnessTimer = window.setInterval(tickFreshness, 1000);

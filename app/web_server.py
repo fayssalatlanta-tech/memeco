@@ -1484,6 +1484,11 @@ async def page_wallet_detail() -> Response:
     return _static("wallet_detail.html")
 
 
+@app.get("/system", include_in_schema=False)
+async def page_system() -> Response:
+    return _static("system.html")
+
+
 @app.get("/static/{path:path}", include_in_schema=False)
 async def page_static_asset(path: str) -> Response:
     # Reject any path that tries to escape STATIC_DIR.
@@ -1664,6 +1669,125 @@ def _sse_format(event_type: str, data: Any) -> str:
     """Format an SSE message: ``event: <type>\\ndata: <json>\\n\\n``."""
     payload = json.dumps(data, default=json_default, separators=(",", ":"))
     return f"event: {event_type}\ndata: {payload}\n\n"
+
+
+# ---- /api/system ------------------------------------------------------------
+#
+# Operational visibility for the local dashboard. Tells the operator at a
+# glance whether external APIs are configured, how recently each ingested,
+# whether retention is still cleaning up, the database size, and the last
+# few failed ingestion runs.
+
+async def fetch_system_status(pool: asyncpg.Pool) -> dict:
+    helius_key = os.getenv("HELIUS_API_KEY")
+    rugcheck_key = os.getenv("RUGCHECK_API_KEY")
+    webhook_url = os.getenv("WHALE_WEBHOOK_URL") or os.getenv("HELIUS_WHALE_WEBHOOK_URL")
+    webhook_auth = os.getenv("WHALE_WEBHOOK_AUTH_HEADER") or os.getenv("HELIUS_WEBHOOK_AUTH_HEADER")
+
+    # Roll-up of the last hour's outbound activity per source. Each
+    # ingest writes a row into raw_api_snapshots so this is a free
+    # "Helius/DexScreener requests" approximator.
+    activity_sql = """
+        SELECT
+            source,
+            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 hour')   AS req_1h,
+            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') AS req_24h,
+            MAX(created_at) AS last_seen
+        FROM raw_api_snapshots
+        GROUP BY source
+        ORDER BY source;
+    """
+
+    # Recent failed runs — good for ops triage.
+    failed_runs_sql = """
+        SELECT id, source, status, error_message, started_at, finished_at
+        FROM ingestion_runs
+        WHERE status = 'failed' OR errors_count > 0
+        ORDER BY id DESC
+        LIMIT 5;
+    """
+
+    # DB size totals.
+    db_size_sql = """
+        SELECT
+            pg_size_pretty(pg_database_size(current_database())) AS db_size_pretty,
+            pg_database_size(current_database())                 AS db_size_bytes;
+    """
+
+    # Hypertable + retention info from Timescale catalog. Returns rows only
+    # when the extension is installed; gracefully empty otherwise.
+    timescale_sql = """
+        SELECT
+            h.hypertable_name AS table_name,
+            h.compression_enabled,
+            (SELECT COUNT(*) FROM timescaledb_information.chunks c
+              WHERE c.hypertable_name = h.hypertable_name) AS chunk_count
+        FROM timescaledb_information.hypertables h
+        ORDER BY h.hypertable_name;
+    """
+    retention_sql = """
+        SELECT j.hypertable_name AS table_name, j.config->>'drop_after' AS drop_after
+        FROM timescaledb_information.jobs j
+        WHERE j.proc_name = 'policy_retention'
+        ORDER BY j.hypertable_name;
+    """
+
+    # Whale webhook config snapshot.
+    webhook_sql = """
+        SELECT webhook_url, status, active, jsonb_array_length(account_addresses) AS watched, updated_at, last_error
+        FROM whale_webhook_configs
+        WHERE provider = 'helius'
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 1;
+    """
+
+    # Latest scan state — the in-memory SCAN_STATE is already exposed via
+    # /api/scan/status; we also include the row count of latest decisions
+    # so the page has a "watchlist depth" number to show.
+    decisions_sql = """
+        SELECT COUNT(*) AS total_decisions,
+               COUNT(*) FILTER (WHERE final_watchlist_status = 'WATCHLIST_PASS') AS pass,
+               COUNT(*) FILTER (WHERE final_watchlist_status = 'WATCHLIST_PASS_HIGH_RISK') AS pass_high_risk,
+               MAX(created_at) AS latest_at
+        FROM watchlist_decisions;
+    """
+
+    async with pool.acquire() as conn:
+        activity = await conn.fetch(activity_sql)
+        failed = await conn.fetch(failed_runs_sql)
+        size = await conn.fetchrow(db_size_sql)
+        try:
+            tables = await conn.fetch(timescale_sql)
+            retention = await conn.fetch(retention_sql)
+        except asyncpg.exceptions.UndefinedTableError:
+            tables, retention = [], []
+        except asyncpg.exceptions.PostgresError:
+            tables, retention = [], []
+        webhook = await conn.fetchrow(webhook_sql)
+        decisions = await conn.fetchrow(decisions_sql)
+
+    return {
+        "config": {
+            "helius_configured": bool(helius_key),
+            "rugcheck_configured": bool(rugcheck_key),
+            "whale_webhook_url_configured": bool(webhook_url),
+            "whale_webhook_auth_configured": bool(webhook_auth),
+        },
+        "activity": [dict(row) for row in activity],
+        "failed_runs": [dict(row) for row in failed],
+        "db_size": dict(size) if size else {},
+        "hypertables": [dict(row) for row in tables],
+        "retention_policies": [dict(row) for row in retention],
+        "whale_webhook": dict(webhook) if webhook else None,
+        "decisions": dict(decisions) if decisions else {},
+        "scan_state": get_scan_state(),
+    }
+
+
+@app.get("/api/system")
+async def api_system(request: Request) -> Response:
+    payload = await fetch_system_status(request.app.state.pool)
+    return QuantJSONResponse(payload)
 
 
 # ---- API POST routes --------------------------------------------------------

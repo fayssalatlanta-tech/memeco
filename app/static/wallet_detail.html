@@ -632,6 +632,68 @@
       .wd-emblem { animation: none !important; }
     }
 
+    /* ---- Hover effects per tier ------------------------------------- */
+    /* Each tier emblem reacts differently when the user hovers — small
+       narrative beats that match the rank's personality. */
+
+    /* TITAN: the crown shimmers — apply a hue/brightness sweep + scale */
+    @keyframes wdTitanShine {
+      0%   { filter: drop-shadow(0 0 24px rgba(255, 215, 0, .6)) brightness(1) hue-rotate(0deg); }
+      50%  { filter: drop-shadow(0 0 38px rgba(255, 215, 0, .9)) brightness(1.25) hue-rotate(-12deg); }
+      100% { filter: drop-shadow(0 0 24px rgba(255, 215, 0, .6)) brightness(1) hue-rotate(0deg); }
+    }
+    .wd-hero[data-tier="TITAN"] .wd-emblem:hover {
+      transform: scale(1.06) rotate(-2deg);
+      animation: wdTitanShine 1.4s ease-in-out infinite;
+    }
+
+    /* WHALE / DOLPHIN: the fish "dives" forward */
+    .wd-hero[data-tier="WHALE"] .wd-emblem:hover,
+    .wd-hero[data-tier="DOLPHIN"] .wd-emblem:hover {
+      transform: scale(1.05) translateX(-6px) rotate(-3deg);
+      filter: drop-shadow(0 0 28px rgba(255, 102, 0, .7));
+    }
+
+    /* TROUT: a quick spin to flip side, then settles */
+    @keyframes wdTroutFlip {
+      0%   { transform: scale(1) rotateY(0deg); }
+      50%  { transform: scale(1.08) rotateY(180deg); }
+      100% { transform: scale(1.05) rotateY(360deg); }
+    }
+    .wd-hero[data-tier="TROUT"] .wd-emblem:hover {
+      animation: wdTroutFlip 1.2s ease-in-out infinite;
+      filter: drop-shadow(0 0 22px rgba(255, 102, 0, .55));
+    }
+
+    /* MINNOW: a tiny burst of energy — bubbles up + slight grow */
+    @keyframes wdMinnowBubble {
+      0%, 100% { transform: scale(1) translateY(0); }
+      50%      { transform: scale(1.08) translateY(-6px); }
+    }
+    .wd-hero[data-tier="MINNOW"] .wd-emblem:hover {
+      animation: wdMinnowBubble 1s ease-in-out infinite;
+      filter: drop-shadow(0 0 18px rgba(160, 160, 160, .5));
+      color: #ff8800;
+    }
+
+    /* BAGHOLDER: the bag shakes (sad reaction) */
+    @keyframes wdBagShake {
+      0%, 100% { transform: translate(0, 0) rotate(0); }
+      15%      { transform: translate(-3px, -1px) rotate(-2deg); }
+      30%      { transform: translate(3px, -1px) rotate(2deg); }
+      45%      { transform: translate(-3px, 1px) rotate(-1deg); }
+      60%      { transform: translate(3px, 1px) rotate(1deg); }
+      75%      { transform: translate(-2px, 0)   rotate(-1deg); }
+    }
+    .wd-hero[data-tier="BAGHOLDER"] .wd-emblem:hover {
+      animation: wdBagShake .55s ease-in-out infinite;
+      filter: drop-shadow(0 0 22px rgba(255, 77, 94, .6));
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .wd-hero .wd-emblem:hover { animation: none !important; transform: none !important; }
+    }
+
     .wd-tier-label { text-align: center; }
     .wd-tier-eyebrow {
       font: 800 9px var(--wd-mono);
@@ -1066,6 +1128,7 @@
       <nav class="wd-nav" aria-label="Workspace">
         <a class="wd-nav-link" href="/">DASHBOARD</a>
         <a class="wd-nav-link" href="/whale-radar">WHALE RADAR</a>
+        <a class="wd-nav-link" href="/system">SYSTEM</a>
         <span class="wd-nav-link is-active">WALLET</span>
       </nav>
       <div class="wd-brand-right">

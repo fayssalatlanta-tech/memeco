@@ -182,19 +182,31 @@ and `app/helius.py`. They share these conventions:
 - `GET /api/health`
 - `GET /api/summary`
 - `GET /api/watchlist?limit=100`
-- `GET /api/watchlist?status=WATCHLIST_PASS`
+- `GET /api/watchlist?status=WATCHLIST_PASS,WATCHLIST_REVIEW` (multi-select via comma-separated values)
 - `GET /api/token-detail?run_id=<id>&token_id=<id>`
 - `GET /api/runs`
 - `GET /api/scan/status`
-- `GET /api/whale-radar`
+- `GET /api/events` — Server-Sent Events stream of scan-state and scan-step events
+- `GET /api/whale-radar?limit=N&wallet=<address>`
 - `GET /api/wallet-detail?wallet=<address>`
+- `GET /api/system` — operational telemetry: API config, activity, retention, errors
 - `POST /api/scan`
 - `POST /api/analyze-token`
-- `POST /api/whale-signal`
+- `POST /api/whale-signal` (Helius webhook receiver)
 - `POST /api/whale-radar/audit`
 - `POST /api/whale-radar/refresh-prices`
 - `POST /api/whale-radar/sync-webhook`
 - `POST /api/whale-radar/survival`
+
+Browser pages (all served by FastAPI lifespan):
+
+| Path           | Page                                               |
+|----------------|----------------------------------------------------|
+| `/`            | dashboard.html — COMMAND BRIDGE / SIGNAL FLOOR     |
+| `/whale-radar` | whale_radar.html — RADAR CONSOLE                   |
+| `/wallet`      | wallet_detail.html — WALLET DOSSIER (PnL tiers)    |
+| `/token`       | token_detail.html — CASE FILE / DECISION DOSSIER   |
+| `/system`      | system.html — OPS DECK                             |
 
 Whale live-signal behavior:
 
@@ -262,6 +274,43 @@ Also include:
 - whether the result should prioritize speed, accuracy, or deeper wallet coverage
 
 ## Known Future Improvements
+
+### Vite SPA refactor (deferred — see notes)
+
+Today the four interactive pages (`dashboard.html`, `whale_radar.html`,
+`wallet_detail.html`, `token_detail.html`) are large monolithic files
+(~70-160KB each) that share a lot of structure: brand bar, KPI HUD
+tiles, panels, tables, signal-chain barcodes, decision-tree drawer,
+empty states. Some helpers (utils.js) and design tokens are already
+extracted to `app/static/shared/`, but the rest is duplicated by hand.
+
+The right next architectural step is a small **Vite + Vanilla JS / Preact**
+build that:
+
+1. Extracts truly-shared components (TokenSymbol, SignalChain,
+   DecisionDrawer, KpiTile, Sparkline, Pill, EmptyState, BrandBar)
+   into a `web/src/components/` tree.
+2. Keeps the FastAPI backend exactly as-is. The static files become
+   the build output (`web/dist/`) served by the existing
+   `/static/{path}` route.
+3. Lets each page declare only its content — the cyberpunk visual
+   language lives in shared components and tokens.
+
+Why this is deferred:
+
+* It is genuinely a day's work — Vite setup, component extraction,
+  build pipeline, FastAPI rewrite to serve from a different
+  directory, CI build job, browser cache invalidation.
+* Doing it half-way would leave the project in a broken state
+  (some pages built, others raw HTML).
+* The current monolithic pages are stable, the dashboard is fast,
+  and the design language is already consistent thanks to the
+  cyberpunk reskin and the four page redesigns.
+
+A future session should pick this up cleanly with a dedicated branch
+and a CI job that gates merge on a successful build.
+
+### Other deferred items
 
 - Add persistent token history and alert on dangerous change.
 - Add caching for repeated wallet intelligence requests.

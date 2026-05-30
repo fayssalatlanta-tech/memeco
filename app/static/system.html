@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Memeco · OPS DECK</title>
+  <link rel="stylesheet" href="/static/shared/tokens.css">
+  <script src="/static/shared/utils.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+      --edge: 22px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: #fff;
+      font: 14px Inter, ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(1200px 600px at 100% -10%, rgba(255, 102, 0, .12), transparent 55%),
+        radial-gradient(900px 600px at -10% 110%, rgba(255, 136, 0, .055), transparent 55%),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, .015) 0 1px, transparent 1px 96px),
+        #000;
+    }
+    a { color: inherit; text-decoration: none; }
+    .ops-shell {
+      max-width: 1640px;
+      margin: 0 auto;
+      padding: 16px var(--edge) 36px;
+      display: grid;
+      gap: 18px;
+    }
+
+    /* ---- Brand bar ----------------------------------------------------- */
+    .ops-brand-bar {
+      position: sticky; top: 0; z-index: 30;
+      display: grid;
+      grid-template-columns: minmax(220px, auto) 1fr minmax(220px, auto);
+      align-items: center;
+      gap: 18px;
+      height: 56px;
+      padding: 0 14px;
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 10px;
+      background: rgba(8, 8, 10, .72);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, .55);
+    }
+    .ops-brand { display: inline-flex; align-items: center; gap: 10px; }
+    .ops-brand-mark {
+      width: 28px; height: 28px;
+      display: grid; place-items: center;
+      border: 1px solid rgba(255, 102, 0, .55);
+      border-radius: 6px;
+      background: rgba(255, 102, 0, .14);
+      color: var(--accent);
+      font: 900 14px var(--mono);
+      box-shadow: 0 0 18px rgba(255, 102, 0, .35);
+    }
+    .ops-brand-name { font: 900 13px var(--mono); letter-spacing: .26em; color: #fff; line-height: 1; }
+    .ops-brand-tag { margin-top: 3px; font: 800 9px var(--mono); letter-spacing: .26em; color: var(--muted); }
+    .ops-nav { justify-self: center; display: inline-flex; gap: 16px; align-items: center; font: 800 11px var(--mono); letter-spacing: .22em; }
+    .ops-nav-link { padding: 8px 4px; color: var(--muted); position: relative; }
+    .ops-nav-link:hover { color: #fff; }
+    .ops-nav-link.is-active { color: var(--accent); }
+    .ops-nav-link.is-active::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+    .ops-brand-right { justify-self: end; display: inline-flex; gap: 10px; }
+    .ops-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .03);
+      font: 700 11px var(--mono);
+      letter-spacing: .04em;
+      color: var(--muted);
+    }
+    .ops-pill .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+      animation: opsPulse 2s ease-in-out infinite;
+    }
+    @keyframes opsPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(.85); } }
+
+    /* ---- Section heads ------------------------------------------------- */
+    .ops-section-head { margin-bottom: 14px; }
+    .ops-section-head h2 {
+      margin: 0;
+      font: 900 12px var(--mono);
+      letter-spacing: .22em;
+      color: #fff;
+      display: inline-flex; align-items: center; gap: 10px;
+    }
+    .ops-section-head h2::before {
+      content: "■"; color: var(--accent); text-shadow: 0 0 10px var(--accent);
+    }
+    .ops-section-note {
+      margin-top: 4px;
+      font: 600 11px var(--mono);
+      color: var(--muted);
+    }
+
+    /* ---- Panels -------------------------------------------------------- */
+    .ops-panel {
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 12px;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(16, 16, 16, .92), rgba(8, 8, 8, .94));
+    }
+
+    /* ---- Status grid (top): API config + ingest activity --------------- */
+    .ops-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    @media (max-width: 1080px) {
+      .ops-grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .ops-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .ops-stat {
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .025);
+    }
+    .ops-stat .lbl {
+      font: 800 9px var(--mono);
+      letter-spacing: .22em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .ops-stat .val {
+      font: 900 16px var(--mono);
+      color: #fff;
+      letter-spacing: .04em;
+    }
+    .ops-stat .val.good { color: var(--green); }
+    .ops-stat .val.bad  { color: var(--red); }
+    .ops-stat .val.warn { color: var(--wait); }
+    .ops-stat .val.muted { color: var(--muted); }
+    .ops-stat .sub { margin-top: 4px; font: 600 10px var(--mono); color: var(--muted); }
+
+    /* ---- Activity table ------------------------------------------------- */
+    .ops-table { width: 100%; border-collapse: collapse; }
+    .ops-table th {
+      background: #0a0a0a;
+      color: var(--muted);
+      font: 900 10px var(--mono);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+    }
+    .ops-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, .04);
+      font: 700 12px var(--mono);
+      color: #fff;
+    }
+    .ops-table td.muted { color: var(--muted); }
+    .ops-table tr:hover td { background: rgba(255, 102, 0, .04); }
+
+    /* ---- Error log ----------------------------------------------------- */
+    .ops-error {
+      padding: 12px;
+      border: 1px solid rgba(255, 77, 94, .35);
+      border-left: 3px solid var(--red);
+      border-radius: 8px;
+      background: rgba(255, 77, 94, .06);
+      margin-bottom: 8px;
+      font: 600 11px var(--mono);
+      color: #fff;
+    }
+    .ops-error .meta {
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: .12em;
+      margin-bottom: 4px;
+    }
+    .ops-error .msg { color: var(--red); white-space: pre-wrap; }
+    .ops-empty {
+      padding: 20px;
+      text-align: center;
+      color: var(--muted);
+      font: 700 11px var(--mono);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    /* ---- Decisions hud ------------------------------------------------- */
+    .ops-hud {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1px;
+      background: rgba(255, 255, 255, .06);
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .ops-hud > * {
+      padding: 16px 18px;
+      background: linear-gradient(180deg, rgba(20, 20, 20, .92), rgba(12, 12, 12, .92));
+      position: relative;
+    }
+    .ops-hud > *::before {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+      width: 2px; background: var(--accent); opacity: .55;
+    }
+    .ops-hud .lbl {
+      font: 800 9px var(--mono);
+      letter-spacing: .22em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .ops-hud .val {
+      font: 900 22px var(--mono);
+      color: #fff;
+      text-shadow: 0 0 22px rgba(255, 102, 0, .35);
+    }
+
+    @media (max-width: 720px) {
+      .ops-brand-bar { grid-template-columns: 1fr auto; height: auto; padding: 10px 12px; }
+      .ops-nav { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="ops-shell">
+    <header class="ops-brand-bar">
+      <div class="ops-brand">
+        <span class="ops-brand-mark">▲</span>
+        <div>
+          <div class="ops-brand-name">OPS DECK</div>
+          <div class="ops-brand-tag">SYSTEM · TELEMETRY · HEALTH</div>
+        </div>
+      </div>
+      <nav class="ops-nav">
+        <a class="ops-nav-link" href="/">DASHBOARD</a>
+        <a class="ops-nav-link" href="/whale-radar">WHALE RADAR</a>
+        <span class="ops-nav-link is-active">SYSTEM</span>
+      </nav>
+      <div class="ops-brand-right">
+        <span class="ops-pill" id="lastUpdated"><span class="dot"></span><span id="lastUpdatedText">Loading…</span></span>
+      </div>
+    </header>
+
+    <!-- Decisions HUD -->
+    <section class="ops-hud" id="decisionsHud"></section>
+
+    <section class="ops-grid-2">
+      <article class="ops-panel">
+        <header class="ops-section-head">
+          <h2>EXTERNAL APIS</h2>
+          <div class="ops-section-note">Configuration status from .env</div>
+        </header>
+        <div class="ops-stat-grid" id="configGrid"></div>
+      </article>
+
+      <article class="ops-panel">
+        <header class="ops-section-head">
+          <h2>WHALE WEBHOOK</h2>
+          <div class="ops-section-note">Helius watcher serving /api/whale-signal</div>
+        </header>
+        <div class="ops-stat-grid" id="webhookGrid"></div>
+      </article>
+    </section>
+
+    <section class="ops-panel">
+      <header class="ops-section-head">
+        <h2>API ACTIVITY (last 1h / 24h)</h2>
+        <div class="ops-section-note">Counts of raw_api_snapshots rows by source — proxy for Helius / DexScreener / RugCheck request volume</div>
+      </header>
+      <div style="overflow-x:auto;">
+        <table class="ops-table">
+          <thead>
+            <tr><th>Source</th><th>1h</th><th>24h</th><th>Last seen</th></tr>
+          </thead>
+          <tbody id="activityRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="ops-grid-2">
+      <article class="ops-panel">
+        <header class="ops-section-head">
+          <h2>STORAGE & RETENTION</h2>
+          <div class="ops-section-note">TimescaleDB hypertables and retention policies</div>
+        </header>
+        <div class="ops-stat-grid" id="storageGrid"></div>
+        <div style="overflow-x:auto; margin-top: 12px;">
+          <table class="ops-table">
+            <thead>
+              <tr><th>Hypertable</th><th>Chunks</th><th>Retention</th></tr>
+            </thead>
+            <tbody id="hypertableRows"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="ops-panel">
+        <header class="ops-section-head">
+          <h2>RECENT FAILURES</h2>
+          <div class="ops-section-note">Last 5 failed or errored ingestion runs</div>
+        </header>
+        <div id="errorList"></div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const { escapeHtml, formatDate } = window.MemecoUtils;
+
+    function check(value) {
+      return value
+        ? `<span class="val good">CONFIGURED</span>`
+        : `<span class="val bad">MISSING</span>`;
+    }
+    function dim(value) {
+      return value === null || value === undefined || value === ""
+        ? `<span class="val muted">—</span>`
+        : `<span class="val">${escapeHtml(String(value))}</span>`;
+    }
+
+    function timeAgo(value) {
+      if (!value) return "—";
+      const t = Date.parse(value);
+      if (Number.isNaN(t)) return "—";
+      const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+      if (s < 60)    return `${s}s ago`;
+      if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
+      if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+      return `${Math.floor(s / 86400)}d ago`;
+    }
+
+    function render(data) {
+      const cfg = data.config || {};
+      document.querySelector("#configGrid").innerHTML = `
+        <div class="ops-stat"><div class="lbl">HELIUS</div>${check(cfg.helius_configured)}<div class="sub">HELIUS_API_KEY</div></div>
+        <div class="ops-stat"><div class="lbl">RUGCHECK</div>${check(cfg.rugcheck_configured)}<div class="sub">RUGCHECK_API_KEY</div></div>
+        <div class="ops-stat"><div class="lbl">WEBHOOK URL</div>${check(cfg.whale_webhook_url_configured)}<div class="sub">WHALE_WEBHOOK_URL</div></div>
+        <div class="ops-stat"><div class="lbl">WEBHOOK AUTH</div>${check(cfg.whale_webhook_auth_configured)}<div class="sub">WHALE_WEBHOOK_AUTH_HEADER</div></div>
+      `;
+
+      const wh = data.whale_webhook;
+      document.querySelector("#webhookGrid").innerHTML = wh ? `
+        <div class="ops-stat"><div class="lbl">STATUS</div><span class="val ${wh.active ? 'good' : 'warn'}">${escapeHtml(wh.status || "—")}</span></div>
+        <div class="ops-stat"><div class="lbl">WATCHED</div>${dim(wh.watched)}</div>
+        <div class="ops-stat"><div class="lbl">UPDATED</div>${dim(timeAgo(wh.updated_at))}</div>
+        <div class="ops-stat"><div class="lbl">LAST ERROR</div>${dim(wh.last_error)}</div>
+      ` : `<div class="ops-empty">No webhook configured. Run "Sync Webhook" on Whale Radar.</div>`;
+
+      const dec = data.decisions || {};
+      document.querySelector("#decisionsHud").innerHTML = `
+        <div><div class="lbl">TOTAL DECISIONS</div><div class="val">${escapeHtml(dec.total_decisions ?? 0)}</div></div>
+        <div><div class="lbl">PASS</div><div class="val">${escapeHtml(dec.pass ?? 0)}</div></div>
+        <div><div class="lbl">PASS · HIGH RISK</div><div class="val">${escapeHtml(dec.pass_high_risk ?? 0)}</div></div>
+        <div><div class="lbl">LATEST DECISION</div><div class="val">${escapeHtml(timeAgo(dec.latest_at))}</div></div>
+      `;
+
+      const act = data.activity || [];
+      document.querySelector("#activityRows").innerHTML = act.length
+        ? act.map((row) => `
+          <tr>
+            <td>${escapeHtml(row.source || "—")}</td>
+            <td>${escapeHtml(row.req_1h ?? 0)}</td>
+            <td class="muted">${escapeHtml(row.req_24h ?? 0)}</td>
+            <td class="muted">${escapeHtml(timeAgo(row.last_seen))}</td>
+          </tr>`).join("")
+        : `<tr><td class="muted" colspan="4"><div class="ops-empty">No raw_api_snapshots yet. Run a scan.</div></td></tr>`;
+
+      const size = data.db_size || {};
+      const hyper = data.hypertables || [];
+      const retention = data.retention_policies || [];
+      const retMap = new Map(retention.map((r) => [r.table_name, r.drop_after]));
+      document.querySelector("#storageGrid").innerHTML = `
+        <div class="ops-stat"><div class="lbl">DB SIZE</div>${dim(size.db_size_pretty)}</div>
+        <div class="ops-stat"><div class="lbl">HYPERTABLES</div>${dim(hyper.length)}</div>
+      `;
+      document.querySelector("#hypertableRows").innerHTML = hyper.length
+        ? hyper.map((t) => `
+          <tr>
+            <td>${escapeHtml(t.table_name)}</td>
+            <td class="muted">${escapeHtml(t.chunk_count ?? 0)}</td>
+            <td class="muted">${escapeHtml(retMap.get(t.table_name) || "—")}</td>
+          </tr>`).join("")
+        : `<tr><td class="muted" colspan="3"><div class="ops-empty">TimescaleDB not detected.</div></td></tr>`;
+
+      const errors = data.failed_runs || [];
+      document.querySelector("#errorList").innerHTML = errors.length
+        ? errors.map((e) => `
+          <div class="ops-error">
+            <div class="meta">RUN #${escapeHtml(e.id)} · ${escapeHtml(e.source || "")} · ${escapeHtml(timeAgo(e.finished_at || e.started_at))}</div>
+            <div class="msg">${escapeHtml((e.error_message || "(no message)").slice(0, 800))}</div>
+          </div>`).join("")
+        : `<div class="ops-empty">No failed runs in recent history. ☕</div>`;
+
+      document.querySelector("#lastUpdatedText").textContent = `Updated ${timeAgo(new Date().toISOString())}`;
+    }
+
+    async function load() {
+      try {
+        const r = await fetch("/api/system");
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        render(data);
+      } catch (error) {
+        document.querySelector("#errorList").innerHTML =
+          `<div class="ops-error"><div class="meta">FETCH</div><div class="msg">${escapeHtml(error.message)}</div></div>`;
+      }
+    }
+
+    load();
+    setInterval(load, 30_000);
+  </script>
+</body>
+</html>

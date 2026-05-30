@@ -232,18 +232,32 @@ http://127.0.0.1:8000
 API endpoints:
 
 ```text
-GET /api/health
-GET /api/summary
-GET /api/watchlist?limit=100
-GET /api/watchlist?status=WATCHLIST_PASS
-GET /api/runs
-GET /api/whale-radar
-GET /api/wallet-detail?wallet=<address>
+GET  /api/health
+GET  /api/summary
+GET  /api/watchlist?limit=100
+GET  /api/watchlist?status=WATCHLIST_PASS,WATCHLIST_REVIEW
+GET  /api/runs
+GET  /api/whale-radar
+GET  /api/wallet-detail?wallet=<address>
+GET  /api/system
+GET  /api/events                      # Server-Sent Events stream of scan progress
+POST /api/scan
 POST /api/analyze-token
 POST /api/whale-signal
 POST /api/whale-radar/audit
 POST /api/whale-radar/refresh-prices
 POST /api/whale-radar/sync-webhook
+POST /api/whale-radar/survival
+```
+
+Browser pages:
+
+```text
+/             Main dashboard (COMMAND BRIDGE / SIGNAL FLOOR)
+/whale-radar  RADAR CONSOLE
+/wallet?wallet=<address>             WALLET DOSSIER (with PnL tier emblems)
+/token?run_id=<id>&token_id=<id>     CASE FILE / DECISION DOSSIER
+/system       OPS DECK (telemetry, retention, error log)
 ```
 
 For a full expert handoff, read:

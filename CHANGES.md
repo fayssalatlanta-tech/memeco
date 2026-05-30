@@ -7,6 +7,152 @@ the project.
 
 ---
 
+## 2026-05-26 — UX polish batch: Ops Deck, whale ticker, browser notifications, tier hovers
+
+### Why
+
+Five small-but-visible follow-ups requested after the page redesigns. They
+target operational visibility, momentum awareness, and personality at the
+edges of the UI.
+
+### What changed
+
+#### 1. `/system` — Ops Deck (new page + endpoint)
+
+* `app/web_server.py`: new `GET /api/system` returning `{ config,
+  activity, failed_runs, db_size, hypertables, retention_policies,
+  whale_webhook, decisions, scan_state }`. Reads ENV for API config,
+  rolls up `raw_api_snapshots` per source for the last 1h/24h, queries
+  TimescaleDB catalog (`timescaledb_information.hypertables` and
+  `timescaledb_information.jobs`) for retention info, fetches DB size
+  via `pg_database_size`, lists the last 5 failed/errored runs, and
+  reads the active webhook config.
+* `app/web_server.py`: new `GET /system` static route serving
+  `system.html`.
+* `app/static/system.html`: new full page styled to match the rest of
+  the suite. Top: brand bar + last-updated pulse pill. HUD: total
+  decisions / pass / pass-high-risk / latest decision. Two-column
+  status (External APIs configured ✓/✗, Whale Webhook live config).
+  Activity table per source (1h / 24h / last seen). Storage panel
+  with hypertables + retention. Failure list with red-edge cards.
+  Polls `/api/system` every 30s.
+* All four other pages get a "SYSTEM" link in the nav so the page is
+  one click away.
+
+#### 2. Whale Intercept ticker on the dashboard
+
+* `app/static/dashboard.html`: new horizontal strip below the brand
+  bar showing the last 3 high-signal whale events (BUY type · token ·
+  wallet · SOL amount · "23s ago"). Auto-hides when there are no
+  alerts. Polls `/api/whale-radar?limit=10` every 60 seconds, slides
+  cards in with a brief animation. Honors prefers-reduced-motion.
+
+#### 3. Browser notifications for starred-token status flips
+
+* `app/static/dashboard.html`: extended `recordDecisionDiffs` to fire
+  a `Notification` (browser-native) when a starred token's
+  `final_watchlist_status` changes between two consecutive renders.
+  Sticky opt-in via `localStorage` (`memeco.notify.starred`). The
+  permission prompt is asked only the first time the user stars a
+  token — never out of the blue.
+
+#### 4. Tier emblem hover effects (wallet detail)
+
+* `app/static/wallet_detail.html`: each tier emblem (TITAN / WHALE /
+  DOLPHIN / TROUT / MINNOW / BAGHOLDER) now reacts when hovered:
+  TITAN shimmers gold, WHALE/DOLPHIN dive forward, TROUT spins on
+  its Y-axis, MINNOW bubbles up + tints orange, BAGHOLDER shakes
+  (sad reaction). Honors prefers-reduced-motion.
+
+#### 5. Vite SPA refactor — deferred
+
+* This one was promised in the original roadmap but is genuinely
+  an architectural lift (set up Vite, extract reusable components,
+  build pipeline, rewire FastAPI to serve the built bundle, update
+  CI). Doing it in a single conversation turn would risk leaving
+  the project in a half-broken state.
+* Documented as a follow-up in `DEVELOPMENT_GUIDE.md` so an expert
+  picking it up later has the right context and constraints.
+
+### Tests
+
+* All 72 unit tests still pass.
+* All five HTML pages (`dashboard`, `token_detail`, `whale_radar`,
+  `wallet_detail`, `system`) parse cleanly.
+* `GET /api/system` and `GET /system` both return 200 against the
+  local DB.
+
+### Backwards compatibility
+
+* No schema changes.
+* `/api/whale-radar` unchanged (the ticker reads existing fields).
+* New `/api/system` and `/system` are additive.
+* Notifications are opt-in and degrade silently on browsers that
+  lack the API or where the user has denied permission.
+
+---
+
+## 2026-05-26 — UI polish batch: Token Detail Case File, Wallet tier hover narratives
+
+### Why
+
+After the cyberpunk reskin and the four big page redesigns
+(Dashboard → Command Bridge / Signal Floor, Whale Radar → Radar
+Console, Wallet → Wallet Dossier with PnL tiers, Token → Case File),
+the four-page suite shares one design language: black + neon orange,
+monospace data, sticky brand bars, edge-stripe HUD tiles, tone-coded
+everything. This entry records that whole arc.
+
+### What changed (UI redesign arc)
+
+* **Cyberpunk theme migration** — `app/static/shared/tokens.css` plus
+  every page's inline `:root` block re-themed to true black bg,
+  dark-gray panels, neon orange accent, pure white priority text.
+  ~200 hardcoded colors converted across 4 pages.
+* **Dashboard COMMAND BRIDGE** — replaced sidebar+main grid with
+  brand bar / command rail / HUD strip / scan ticker / filter bar /
+  hero / opportunity grid / decision-stream table. New monospace
+  typography, terminal-prompt search.
+* **SIGNAL FLOOR upgrade** — Decision Stream renamed to SIGNAL
+  FLOOR, gained:
+  * Live PASS/WAIT/REJECT/FRESHEST counters in the section header.
+  * **9-bar Signal Chain barcode** in every row — colored ticks for
+    each pipeline stage (Market → Contract → Liquidity → Trap →
+    Wallet → Cluster → Manip → Dev → Insider). Hover any bar for
+    "Stage: status".
+  * Three view modes via a tab switcher: ▦ TABLE (dense default),
+    ≡ TAPE (chronological pulse feed), ▣ COCKPIT (detailed card
+    grid). All views share state, sort, filter, drawer-on-hover,
+    starring, keyboard nav.
+  * Better empty state (glowing orange ▲ + uppercase mono).
+* **Whale Radar RADAR CONSOLE** — replaced stacked panels with a
+  centerpiece radar orb (3 concentric rings, sweeping arm, pulsing
+  pip that flashes white on new signals) + LAST INTERCEPT readout,
+  vertical command rail, alerts grid (INCOMING + GROUP BUY side by
+  side), gold/silver/bronze rank chips on the leaderboard.
+* **Wallet Detail WALLET DOSSIER + tiers** — wallet rank emblems
+  driven by Total PnL:
+  * `>= 100 SOL` → TITAN (gold halo + crown)
+  * `50–100 SOL` → WHALE
+  * `20–50 SOL`  → DOLPHIN
+  * `5–20 SOL`   → TROUT
+  * `0–5 SOL`    → MINNOW
+  * `< 0 SOL`    → BAGHOLDER (drooping bag, red border)
+  * All emblems are inline SVGs; tier reskins the hero border + glow.
+  * RECENT P&L SPARK histogram + ROI BALANCE scale (literally tilts
+    based on win/loss ratio) + SAFETY panel.
+* **Token Detail CASE FILE** — sticky brand bar / hero with token
+  head + Change Signals diff strip / KPI HUD / **9-card forensic
+  Decision Dossier** with auto-numbered counters and tone-coded
+  edges / horizontal Token Timeline with pip-marker dots on a
+  glowing orange axis line / reskinned tables (Wallet Intelligence,
+  Early Buyer Profit Map, Top Holders, Wallet Relationships).
+
+Pure markup + CSS + a sprinkle of JS. No backend or schema changes
+in the UI batch. 72 tests still pass throughout.
+
+---
+
 ## 2026-05-25 — Pipeline review batch: parallel Helius, batched DB writes, run-scoped services, lifespan singletons, async workers, modular layout
 
 ### Why

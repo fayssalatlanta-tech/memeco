@@ -297,52 +297,151 @@ Data comes from:
 
 ## Dashboard Views
 
-Main dashboard:
+The local dashboard is served by `app/web_server.py` and consists of five
+HTML pages under `app/static/`. All five share the cyberpunk theme (true
+black background, neon-orange accent, monospace typography, sticky brand
+bars) and were rebuilt during the 2026-05-26 redesign arc.
 
-- Full-dark dashboard layout.
-- Token logo and address copy
-- Manual token analysis input: paste one Solana mint address and run the same analysis pipeline for that token.
-- Age and Dex age
-- Bonding status
-- DexScreener Ads
-- Price movement chips from stored snapshots: 1h, 4h, and 24h
-- DexScreener market fields: price, FDV, market cap, liquidity/bonding liquidity state, volume 5m/1h/24h, and buys/sells.
-- Scan Monitor with a speedometer-style system load gauge based on current scan state, active pipeline steps, elapsed scan time, and errors.
-- Final decision
-- Market / Contract / Risk / Wallet / Cluster / Manipulation / Intel
-- Reason and updated timestamp
+### Five pages, one design language
 
-Token detail page:
+| Page  | Path           | Identity                                         |
+|-------|----------------|--------------------------------------------------|
+| `/`         | dashboard.html       | **COMMAND BRIDGE / SIGNAL FLOOR**          |
+| `/whale-radar` | whale_radar.html  | **RADAR CONSOLE** with live orb            |
+| `/wallet`   | wallet_detail.html   | **WALLET DOSSIER** with PnL tier emblems   |
+| `/token`    | token_detail.html    | **CASE FILE / DECISION DOSSIER**           |
+| `/system`   | system.html          | **OPS DECK** — telemetry & health          |
 
-- Full-dark token detail layout.
-- Full token status
-- Refresh Analysis button to re-run the current token and highlight `Change Signals` against the previous result.
-- Corrected token timeline based on observed/stored evidence:
-  - selected pair creation time
-  - first stored DexScreener profile snapshot
-  - first stored price/liquidity snapshot
-  - first tracked top-holder entry
-  - first tracked sniper
-  - first tracked major exit
-  - first observed DexScreener promotion
-  - final decision time
-- `Why Rejected?` decision tree:
-  - Market reason and warnings
-  - Contract risk reason and warnings
-  - Liquidity reason and warnings
-  - Liquidity Trap score and warnings
-  - Wallet concentration reason and warnings
-  - Cluster reason and warnings
-- Wallet manipulation reason and suspicious signals
-- Dev wallet audit result
-- Dev wallet flow result and Shadow Dev Score
-- Wallet intelligence labels/reasons
-- Insider Probability score and reasons
-- Final decision
-- Dex ads
-- Wallet labels and reasons
-- Top holders
-- Wallet relationship edges
+### Dashboard (`/`)
+
+Layout, top to bottom:
+- **Brand bar** — sticky orange-glow ▲ mark, "MEMECO QUANT INTELLIGENCE",
+  centered nav (DASHBOARD / WHALE RADAR / SYSTEM), live freshness pill
+  with a pulsing dot.
+- **Whale Intercept ticker** — strip showing the last 3 high-signal whale
+  events with type · token · wallet · SOL amount · "23s ago". Polls
+  `/api/whale-radar` every 60s. Auto-hides when empty.
+- **Command rail** — terminal-prompt search ("›  ANALYZE › paste Solana
+  mint address") feeding into a glowing orange EXECUTE CTA. RUN SCAN /
+  refresh / filters as monospace icon buttons.
+- **HUD strip** — KPI tiles in a single horizontal row with left orange
+  edge stripes; numbers are big monospace numerals with text-glow.
+- **Scan ticker** — linear orange progress meter (replaces the older
+  speedometer) + horizontally-scrolling pill rail of recent scan steps.
+- **Filter bar** — chip group (ALL / ★ STARRED / PASS / REVIEW / WAIT /
+  REJECT… ). Multi-select; serializes to `?status=…&starred=1` URL.
+- **Hero opportunity card** + **Opportunity grid** (top 3 ranked passes).
+- **SIGNAL FLOOR** (the main table) with three view modes via a tab
+  switcher next to the count badge:
+  - **▦ TABLE** — dense default. Each row has a 9-bar Signal Chain
+    barcode showing the tone of every pipeline stage (Market →
+    Contract → Liquidity → Trap → Wallet → Cluster → Manip → Dev →
+    Insider). Hover any bar to see "Stage: status". A small verdict
+    pill (PASS / REVIEW / REJECT) sits beside the chain.
+  - **≡ TAPE** — chronological pulse feed sorted by `created_at` desc.
+    Time + token + chain + verdict per row, glowing orange dot on the
+    left of each row.
+  - **▣ COCKPIT** — detailed card grid. Each token gets its own card
+    with stat tiles (Insider/100, Trap/100, Liq $) and the full
+    decision reason.
+- **Live header counters** — PASS / WAIT / REJECT / FRESHEST update on
+  every refresh.
+- **Decision diff badges** — when a token's `final_watchlist_status`
+  flips between two consecutive renders, a small "↑ now PASS" badge
+  appears on the row for ~30 seconds.
+- **Decision-tree drawer** — hovering any row opens a slide-in drawer
+  on the right with the full decision tree without leaving the page.
+- **Star button** in the row toolbar persists the wallet locally and
+  optionally fires a browser **Notification** when a starred token's
+  status flips.
+- **Keyboard nav**: `/` focus search · `j`/`k` next/prev row · `Enter`
+  open detail · `c` copy address · `?` cheat-sheet · `Esc` close.
+- **Density toggle** (Compact / Comfy) persisted in localStorage.
+- **Mobile / tablet** — under 720px the table reflows into a card list;
+  the sidebar / nav collapses behind ☰ at tablet widths.
+
+### Whale Radar (`/whale-radar`)
+
+- **Sticky brand bar** matching the dashboard.
+- **Radar orb** — three concentric orange rings, a sweeping arm rotating
+  every 3.6s, a centered pip that pulses outward. The pip **flashes
+  white** the instant a brand-new live signal arrives.
+- **LAST INTERCEPT readout** — "<wallet> · <token> · <type> · <amount>
+  SOL · 12s ago" beside the orb.
+- **Webhook status pill** — green active / red missing / orange idle.
+- **Vertical command rail** — REFRESH (orange CTA) + AUDIT WALLETS /
+  REFRESH PRICES / SURVIVAL PROFILE / SYNC WEBHOOK as monospace buttons.
+- **KPI HUD strip** — same edge-stripe tiles as the dashboard.
+- **Alerts grid** — INCOMING (high-signal alerts) and GROUP BUY (token
+  confluence) **side by side** instead of stacked.
+- **Floor** — leaderboard (rank chips: gold/silver/bronze for top 3) and
+  live feed (timeline-dot signal cards).
+- **Auto-analysis queue** — full-width strip of job cards.
+
+### Wallet Detail (`/wallet`)
+
+- **Tier emblem driven by Total PnL** — every wallet wears a rank emblem
+  rendered as an inline SVG (no external assets):
+
+  | PnL bucket  | Tier      | Emblem            | Hover behavior            |
+  |-------------|-----------|-------------------|---------------------------|
+  | ≥ 100 SOL   | TITAN     | crown + gold halo | shimmers gold + scales    |
+  | 50–100 SOL  | WHALE     | whale silhouette  | dives forward             |
+  | 20–50 SOL   | DOLPHIN   | dolphin           | dives forward             |
+  | 5–20 SOL    | TROUT     | spotted small fish| Y-axis flip               |
+  | 0–5 SOL     | MINNOW    | tiny gray fish    | bubbles up + tints orange |
+  | < 0 SOL     | BAGHOLDER | drooping bag      | shakes (sad reaction)     |
+
+  Each tier reskins the hero border + glow color. TITAN gets a literal
+  gold halo, BAGHOLDER goes red. All animations honor
+  `prefers-reduced-motion`.
+- **HERO** — split: 220×220 emblem + tier name on the left; wallet
+  handle, address chip, two giant headline numbers (Total PnL, Win
+  Rate) and an orange "OPEN ON WHALE RADAR" CTA on the right.
+- **KPI HUD strip** — TRADES / AVG HOLD / TOTAL COST / RECEIVED-SPENT /
+  AVG ROI / AVG ENTRY / STYLE / SECURITY.
+- **Analytics row (3-up)** — RECENT P&L SPARK (vertical bar histogram
+  of last ~25 trades, oldest left → newest right, green-up / red-down
+  relative to a centered zero line) · ROI BALANCE (a literal scale
+  with a fulcrum ▲ that **tilts ±6°** based on win/loss ratio) ·
+  SAFETY (phishing/rug/bot rows + buy-size distribution).
+- **Tabs + table** — TRADES / LIVE SIGNALS / HOLDINGS.
+
+### Token Detail (`/token`)
+
+- **Sticky brand bar** matching the rest of the suite.
+- **HERO — split**: token head card on the left; **Change Signals**
+  diff strip on the right (orange-edge tone-coded cells: good = green,
+  bad = red, warn = yellow). Diffs are now the first thing you see.
+- **KPI HUD strip** — repurposes the existing metric set.
+- **DECISION DOSSIER** — the legacy "Why Rejected?" section becomes
+  **9 numbered evidence cards** in a responsive grid. Each card has an
+  auto-numbered top-right counter (`01`, `02`, …), a pass / warn / fail
+  / unknown left edge stripe + tinted background, a pill-shaped status
+  chip in the matching tone, and reason + bulleted warnings.
+- **TOKEN TIMELINE** — rebuilt as a horizontal track with **pip-marker
+  dots above each card**, lit by tone, all sitting on a glowing orange
+  axis line.
+- **Tables** — Wallet Intelligence, Early Buyer Profit Map, Top
+  Holders, Wallet Relationships — every table reskinned to match
+  SIGNAL FLOOR (black sticky headers, monospace caps labels).
+
+### Ops Deck (`/system`)
+
+Operational visibility for the local stack. Polls `/api/system` every
+30 seconds. Sections:
+
+- **HUD** — total decisions / PASS / PASS·HIGH RISK / latest decision.
+- **External APIs** — HELIUS / RUGCHECK / WHALE_WEBHOOK_URL /
+  WHALE_WEBHOOK_AUTH_HEADER configured ✓ or missing ✗.
+- **Whale webhook** — current status, watched wallet count, last
+  updated, last error.
+- **API activity** — counts of `raw_api_snapshots` rows per source for
+  the last 1h and 24h, plus last seen.
+- **Storage & retention** — DB size, hypertable count, per-table
+  chunks and retention policy from the Timescale catalog.
+- **Recent failures** — last 5 failed/errored ingestion runs with
+  truncated error message.
 
 Performance note:
 
