@@ -1005,119 +1005,664 @@
         max-width: 100%;
       }
     }
+
+    /* ================================================================
+       TD — CASE FILE / DECISION DOSSIER LAYOUT.
+       Full visual override on top of the legacy styles.
+       ================================================================ */
+    :root {
+      --td-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+      --td-edge: 22px;
+    }
+
+    body {
+      background:
+        radial-gradient(1100px 580px at 100% -10%, rgba(255, 102, 0, .12), transparent 55%),
+        radial-gradient(900px 600px at -10% 110%, rgba(255, 136, 0, .055), transparent 55%),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, .015) 0 1px, transparent 1px 96px),
+        #000;
+    }
+
+    .td-shell {
+      max-width: 1640px;
+      margin: 0 auto;
+      padding: 16px var(--td-edge) 36px;
+      display: grid;
+      gap: 18px;
+    }
+
+    /* Hide legacy chrome — the new shell handles everything */
+    body > header, .topbar, main.shell { display: none !important; }
+    .td-shell main.shell { display: revert !important; }
+
+    /* ---- Brand bar ----------------------------------------------------- */
+    .td-brand-bar {
+      position: sticky; top: 0; z-index: 30;
+      display: grid;
+      grid-template-columns: minmax(220px, auto) 1fr minmax(220px, auto);
+      align-items: center;
+      gap: 18px;
+      height: 56px;
+      padding: 0 14px;
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 10px;
+      background: rgba(8, 8, 10, .72);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, .55);
+    }
+    .td-brand { display: inline-flex; align-items: center; gap: 10px; }
+    .td-brand-mark {
+      width: 28px; height: 28px;
+      display: grid; place-items: center;
+      border: 1px solid rgba(255, 102, 0, .55);
+      border-radius: 6px;
+      background: rgba(255, 102, 0, .14);
+      color: var(--accent);
+      font: 900 14px var(--td-mono);
+      box-shadow: 0 0 18px rgba(255, 102, 0, .35);
+    }
+    .td-brand-name { font: 900 13px var(--td-mono); letter-spacing: .26em; color: #fff; line-height: 1; }
+    .td-brand-tag { margin-top: 3px; font: 800 9px var(--td-mono); letter-spacing: .26em; color: var(--muted); }
+
+    .td-nav { justify-self: center; display: inline-flex; gap: 16px; align-items: center; font: 800 11px var(--td-mono); letter-spacing: .22em; }
+    .td-nav-link { padding: 8px 4px; color: var(--muted); position: relative; }
+    .td-nav-link:hover { color: #fff; }
+    .td-nav-link.is-active { color: var(--accent); }
+    .td-nav-link.is-active::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+
+    .td-brand-right { justify-self: end; }
+    .td-status {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .03);
+      font: 700 11px var(--td-mono);
+      letter-spacing: .04em;
+      color: var(--muted);
+    }
+
+    /* ---- HERO ---------------------------------------------------------- */
+    .td-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .td-hero-main {
+      border: 1px solid rgba(255, 102, 0, .35);
+      border-radius: 14px;
+      padding: 22px;
+      background:
+        radial-gradient(700px 280px at 100% -20%, rgba(255, 102, 0, .14), transparent 55%),
+        linear-gradient(180deg, rgba(20, 20, 20, .92), rgba(8, 8, 8, .94));
+      box-shadow: 0 0 0 1px rgba(255, 102, 0, .12), 0 30px 80px -20px rgba(0, 0, 0, .8);
+    }
+
+    /* Restyle the existing token-head children (rendered by JS) */
+    .td-hero-main h1 {
+      margin: 0;
+      font: 900 26px var(--td-mono);
+      letter-spacing: .04em;
+      color: #fff;
+    }
+
+    .td-hero-main .symbol {
+      font: 900 14px var(--td-mono);
+      letter-spacing: .14em;
+      color: var(--accent);
+    }
+
+    .td-hero-main .badge,
+    .td-hero-main .label {
+      border-radius: 6px !important;
+      font: 800 10px var(--td-mono) !important;
+      letter-spacing: .12em !important;
+    }
+
+    .td-hero-main .token-actions a,
+    .td-hero-main .token-actions button {
+      border-radius: 8px;
+      font: 800 11px var(--td-mono);
+      letter-spacing: .14em;
+    }
+
+    /* Change Signals as a compact diff panel on the right of the hero */
+    .td-hero-side {
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 14px;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(16, 16, 16, .92), rgba(8, 8, 8, .94));
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .td-hero-side .change-grid {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+      grid-template-columns: 1fr !important;  /* override legacy 3-col */
+    }
+    .td-hero-side .change-item,
+    .td-hero-side .change-cell {
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .025);
+      font: 600 11px var(--td-mono);
+      color: var(--muted);
+    }
+    .td-hero-side .change-item.good { border-left-color: var(--green); background: rgba(47, 226, 138, .06); }
+    .td-hero-side .change-item.bad,
+    .td-hero-side .change-item.danger { border-left-color: var(--reject); background: rgba(255, 77, 94, .06); }
+    .td-hero-side .change-item.warn,
+    .td-hero-side .change-item.warning { border-left-color: var(--wait); background: rgba(255, 194, 75, .06); }
+    .td-hero-side .change-item .change-label,
+    .td-hero-side .change-cell strong {
+      display: block;
+      margin-bottom: 4px;
+      font: 900 10px var(--td-mono);
+      letter-spacing: .14em;
+      color: #fff;
+    }
+    .td-hero-side .change-item .change-value {
+      color: var(--muted);
+      font: 600 11px var(--td-mono);
+      letter-spacing: .02em;
+      word-break: break-word;
+    }
+    .td-hero-side[hidden] { display: none; }
+
+    /* ---- Section heads (shared) --------------------------------------- */
+    .td-section-head { margin-bottom: 14px; }
+    .td-section-head h2 {
+      margin: 0;
+      font: 900 12px var(--td-mono);
+      letter-spacing: .22em;
+      color: #fff;
+      display: inline-flex; align-items: center; gap: 10px;
+    }
+    .td-section-head h2 .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+    .td-section-head h2 .dot.pulse { animation: tdDotPulse 2s ease-in-out infinite; }
+    @keyframes tdDotPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .55; transform: scale(.85); }
+    }
+    .td-section-note {
+      margin-top: 4px;
+      font: 600 11px var(--td-mono);
+      color: var(--muted);
+      letter-spacing: .04em;
+    }
+
+    /* ---- KPI metric strip --------------------------------------------- */
+    .td-hud {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1px;
+      background: rgba(255, 255, 255, .06);
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .td-hud > * {
+      padding: 16px 18px;
+      background: linear-gradient(180deg, rgba(20, 20, 20, .92), rgba(12, 12, 12, .92));
+      position: relative;
+      border: none !important;
+    }
+    .td-hud > *::before {
+      content: "";
+      position: absolute; left: 0; top: 0; bottom: 0;
+      width: 2px;
+      background: var(--accent);
+      opacity: .55;
+    }
+    .td-hud .label,
+    .td-hud .metric .label,
+    .td-hud .metric .metric-label {
+      font: 800 9px var(--td-mono);
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: block;
+    }
+    .td-hud .value,
+    .td-hud .metric .value,
+    .td-hud .metric .metric-value {
+      font: 900 22px var(--td-mono);
+      color: #fff;
+      line-height: 1;
+      text-shadow: 0 0 22px rgba(255, 102, 0, .35);
+      display: block;
+    }
+    .td-hud small { color: var(--muted); font-size: 10px; }
+
+    /* ---- Panels (shared frame) ---------------------------------------- */
+    .td-panel {
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 12px;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(16, 16, 16, .92), rgba(8, 8, 8, .94));
+    }
+
+    /* ---- Decision Dossier (forensic stage cards) ---------------------- */
+    .td-dossier .decision-tree {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .td-dossier .decision-step {
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-left: 3px solid var(--accent);
+      border-radius: 10px;
+      padding: 14px;
+      background: rgba(20, 20, 20, .9);
+      transition: border-color .14s ease, transform .14s ease;
+      counter-increment: dossier-step;
+    }
+    .td-dossier .decision-tree { counter-reset: dossier-step; }
+    .td-dossier .decision-step::before {
+      content: counter(dossier-step, decimal-leading-zero);
+      position: absolute;
+      top: 12px; right: 12px;
+      font: 900 9px var(--td-mono);
+      letter-spacing: .12em;
+      color: var(--muted);
+      opacity: .7;
+    }
+    .td-dossier .decision-step.pass {
+      border-left-color: var(--green);
+      background: linear-gradient(180deg, rgba(47, 226, 138, .08), rgba(20, 20, 20, .9));
+    }
+    .td-dossier .decision-step.warning,
+    .td-dossier .decision-step.pending,
+    .td-dossier .decision-step.warn {
+      border-left-color: var(--wait);
+      background: linear-gradient(180deg, rgba(255, 194, 75, .08), rgba(20, 20, 20, .9));
+    }
+    .td-dossier .decision-step.danger,
+    .td-dossier .decision-step.fail {
+      border-left-color: var(--reject);
+      background: linear-gradient(180deg, rgba(255, 77, 94, .08), rgba(20, 20, 20, .9));
+    }
+    .td-dossier .decision-step.unknown {
+      border-left-color: var(--accent);
+    }
+    .td-dossier .decision-step:hover { transform: translateY(-1px); border-color: rgba(255, 102, 0, .3); }
+
+    /* Match real JS-emitted class names (decision-step-title / -status /
+       -reason / -list) plus my newer step-title / step-detail / step-score
+       in case future renderers use them. */
+    .td-dossier .decision-step .decision-step-head {
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    .td-dossier .decision-step .decision-step-title,
+    .td-dossier .decision-step h3,
+    .td-dossier .decision-step .step-title {
+      margin: 0 0 0;
+      font: 900 11px var(--td-mono) !important;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: #fff !important;
+    }
+    .td-dossier .decision-step .decision-step-status,
+    .td-dossier .decision-step .step-status {
+      display: inline-block;
+      padding: 2px 8px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      font: 800 10px var(--td-mono);
+      letter-spacing: .12em;
+      margin: 0;
+      flex-shrink: 0;
+    }
+    .td-dossier .decision-step.pass .decision-step-status,
+    .td-dossier .decision-step.pass .step-status    { color: var(--green); }
+    .td-dossier .decision-step.warning .decision-step-status,
+    .td-dossier .decision-step.pending .decision-step-status,
+    .td-dossier .decision-step.warn .step-status    { color: var(--wait); }
+    .td-dossier .decision-step.danger .decision-step-status,
+    .td-dossier .decision-step.fail .step-status    { color: var(--reject); }
+    .td-dossier .decision-step.unknown .step-status { color: var(--accent); }
+
+    .td-dossier .decision-step .decision-step-reason,
+    .td-dossier .decision-step .step-detail,
+    .td-dossier .decision-step p {
+      margin: 4px 0 0;
+      font: 600 12px var(--td-mono);
+      color: var(--muted) !important;
+      letter-spacing: .02em;
+      line-height: 1.45;
+    }
+    .td-dossier .decision-step .decision-step-list {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font: 600 11px var(--td-mono);
+      letter-spacing: .02em;
+      line-height: 1.5;
+    }
+    .td-dossier .decision-step .decision-step-list li::marker {
+      color: var(--accent);
+    }
+    .td-dossier .decision-step .step-score {
+      margin-top: 8px;
+      font: 900 11px var(--td-mono);
+      letter-spacing: .14em;
+      color: #fff;
+    }
+
+    /* ---- Token Timeline (horizontal track) ---------------------------- */
+    .td-timeline-block .timeline {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      padding-top: 16px;
+    }
+    .td-timeline-block .timeline::before {
+      content: "";
+      position: absolute;
+      left: 0; right: 0;
+      top: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(255, 102, 0, .55), transparent);
+      box-shadow: 0 0 14px rgba(255, 102, 0, .35);
+    }
+    .td-timeline-block .timeline .timeline-item {
+      position: relative;
+      padding: 16px 14px 12px;
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 10px;
+      background: rgba(20, 20, 20, .9);
+      display: block;
+    }
+    /* Hide the legacy timeline-dot (we use ::before instead) */
+    .td-timeline-block .timeline-dot { display: none !important; }
+    .td-timeline-block .timeline .timeline-item::before {
+      content: "";
+      position: absolute;
+      top: -6px; left: 16px;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+      border: 2px solid #000;
+    }
+    .td-timeline-block .timeline-item.pass::before { background: var(--green); box-shadow: 0 0 10px var(--green); }
+    .td-timeline-block .timeline-item.warning::before { background: var(--wait); box-shadow: 0 0 10px var(--wait); }
+    .td-timeline-block .timeline-item.danger::before { background: var(--reject); box-shadow: 0 0 10px var(--reject); }
+
+    /* Strip the legacy card frame so our outer item provides it */
+    .td-timeline-block .timeline-item .timeline-card {
+      background: transparent !important;
+      border: none !important;
+      padding: 0 !important;
+    }
+    .td-timeline-block .timeline-item .timeline-head {
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: flex-start;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+    .td-timeline-block .timeline-item .timeline-time {
+      font: 800 10px var(--td-mono);
+      letter-spacing: .12em;
+      color: var(--muted);
+    }
+    .td-timeline-block .timeline-item .timeline-title {
+      font: 900 12px var(--td-mono);
+      letter-spacing: .04em;
+      color: #fff;
+    }
+    .td-timeline-block .timeline-item .timeline-body {
+      font: 600 11px var(--td-mono);
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    /* ---- Tables (shared) ---------------------------------------------- */
+    .td-table-wrap {
+      overflow-x: auto;
+      margin: -4px -18px -18px;
+      padding: 0 18px 18px;
+    }
+    .td-panel table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .td-panel table th {
+      background: #0a0a0a;
+      color: var(--muted);
+      font: 900 10px var(--td-mono);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+    }
+    .td-panel table td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, .04);
+      font: 600 12px var(--td-mono);
+      color: var(--muted);
+      vertical-align: top;
+    }
+    .td-panel table td strong { color: #fff; font-weight: 900; }
+    .td-panel table tr:hover td { background: rgba(255, 102, 0, .04); }
+    .td-panel table .empty {
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+      font: 700 11px var(--td-mono);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    /* Profit Map summary chips */
+    .td-panel .profit-map {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .td-panel .profit-map > * {
+      padding: 6px 10px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .03);
+      font: 800 10px var(--td-mono);
+      letter-spacing: .12em;
+      color: var(--muted);
+    }
+
+    /* ---- Responsive --------------------------------------------------- */
+    @media (max-width: 1100px) {
+      .td-hero { grid-template-columns: 1fr; }
+      .td-hero-side { max-height: none; }
+    }
+    @media (max-width: 720px) {
+      .td-brand-bar { grid-template-columns: 1fr auto; height: auto; padding: 10px 12px; gap: 10px; }
+      .td-nav { display: none; }
+      .td-hud { grid-template-columns: 1fr 1fr; }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div class="shell topbar">
-      <a class="back" href="/">Back to dashboard</a>
-      <div class="status-note" id="status">Loading...</div>
-    </div>
-  </header>
+  <main class="td-shell">
 
-  <main class="shell">
-    <section class="token-head" id="tokenHead"></section>
-    <section class="grid" id="metrics"></section>
-    <section class="change-panel" id="changePanel">
-      <div class="change-head">
-        <div>
-          <div class="change-title">Change Signals</div>
-          <div class="change-note" id="changeNote">Changes from the latest refresh appear here.</div>
+    <!-- Brand bar -->
+    <header class="td-brand-bar">
+      <div class="td-brand">
+        <span class="td-brand-mark">▲</span>
+        <div class="td-brand-text">
+          <div class="td-brand-name">CASE FILE</div>
+          <div class="td-brand-tag">TOKEN INTELLIGENCE · DECISION DOSSIER</div>
         </div>
       </div>
-      <div class="change-grid" id="changeGrid"></div>
+      <nav class="td-nav" aria-label="Workspace">
+        <a class="td-nav-link" href="/">DASHBOARD</a>
+        <a class="td-nav-link" href="/whale-radar">WHALE RADAR</a>
+        <span class="td-nav-link is-active">TOKEN</span>
+      </nav>
+      <div class="td-brand-right">
+        <span class="td-status status-note" id="status">Loading...</span>
+      </div>
+    </header>
+
+    <!-- HERO: identity + verdict + signal chain + change signals -->
+    <section class="td-hero">
+      <div class="td-hero-main token-head" id="tokenHead"></div>
+
+      <aside class="td-hero-side change-panel" id="changePanel">
+        <header class="td-section-head">
+          <h2><i class="dot pulse"></i> CHANGE SIGNALS</h2>
+          <div class="td-section-note" id="changeNote">Diffs from the previous refresh appear here.</div>
+        </header>
+        <div class="change-grid" id="changeGrid"></div>
+      </aside>
     </section>
 
-    <section class="panel">
-      <div class="panel-title">Token Timeline</div>
-      <div class="timeline" id="tokenTimeline"></div>
-    </section>
+    <!-- KPI METRIC STRIP -->
+    <section class="td-hud" id="metrics"></section>
 
-    <section class="panel">
-      <div class="panel-title">Why Rejected?</div>
+    <!-- DECISION DOSSIER: 9 forensic stage cards -->
+    <section class="td-panel td-dossier">
+      <header class="td-section-head">
+        <h2><i class="dot"></i> DECISION DOSSIER</h2>
+        <div class="td-section-note">Each pipeline stage as an evidence card. Tone says PASS / WARN / FAIL / UNKNOWN at a glance.</div>
+      </header>
       <div class="decision-tree" id="decisionTree"></div>
     </section>
 
-    <section class="panel">
-      <div class="panel-title">Wallet Intelligence</div>
-      <table>
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Wallet</th>
-            <th>Holder %</th>
-            <th>Labels</th>
-            <th>Label Reason</th>
-            <th>Score</th>
-            <th>Entry</th>
-            <th>From Launch</th>
-            <th>In</th>
-            <th>Out</th>
-            <th>Net</th>
-            <th>Txs</th>
-            <th>Funding Source</th>
-          </tr>
-        </thead>
-        <tbody id="walletRows"></tbody>
-      </table>
+    <!-- TIMELINE -->
+    <section class="td-panel td-timeline-block">
+      <header class="td-section-head">
+        <h2><i class="dot"></i> TOKEN TIMELINE</h2>
+        <div class="td-section-note">Observed events between pair creation and the latest decision.</div>
+      </header>
+      <div class="timeline" id="tokenTimeline"></div>
     </section>
 
-    <section class="panel">
-      <div class="panel-title">Early Buyer Profit Map</div>
+    <!-- WALLET INTEL TABLE -->
+    <section class="td-panel">
+      <header class="td-section-head">
+        <h2><i class="dot"></i> WALLET INTELLIGENCE</h2>
+        <div class="td-section-note">Top holders enriched with labels, entry timing, and net flow.</div>
+      </header>
+      <div class="td-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Wallet</th>
+              <th>Holder %</th>
+              <th>Labels</th>
+              <th>Label Reason</th>
+              <th>Score</th>
+              <th>Entry</th>
+              <th>From Launch</th>
+              <th>In</th>
+              <th>Out</th>
+              <th>Net</th>
+              <th>Txs</th>
+              <th>Funding Source</th>
+            </tr>
+          </thead>
+          <tbody id="walletRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- EARLY BUYER PROFIT MAP -->
+    <section class="td-panel">
+      <header class="td-section-head">
+        <h2><i class="dot"></i> EARLY BUYER PROFIT MAP</h2>
+        <div class="td-section-note">Tracked early holders' realized PnL inferred from observed swaps.</div>
+      </header>
       <div class="profit-map" id="earlyBuyerSummary"></div>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Wallet</th>
-            <th>Entry</th>
-            <th>From Launch</th>
-            <th>Status</th>
-            <th>Profit State</th>
-            <th>In</th>
-            <th>Out</th>
-            <th>Net</th>
-            <th>SOL Spent</th>
-            <th>SOL Received</th>
-            <th>Realized PnL</th>
-            <th>Labels</th>
-          </tr>
-        </thead>
-        <tbody id="earlyBuyerRows"></tbody>
-      </table>
+      <div class="td-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Wallet</th>
+              <th>Entry</th>
+              <th>From Launch</th>
+              <th>Status</th>
+              <th>Profit State</th>
+              <th>In</th>
+              <th>Out</th>
+              <th>Net</th>
+              <th>SOL Spent</th>
+              <th>SOL Received</th>
+              <th>Realized PnL</th>
+              <th>Labels</th>
+            </tr>
+          </thead>
+          <tbody id="earlyBuyerRows"></tbody>
+        </table>
+      </div>
     </section>
 
-    <section class="panel">
-      <div class="panel-title">Top Holders</div>
-      <table>
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Wallet</th>
-            <th>Amount</th>
-            <th>Percent</th>
-            <th>Source</th>
-          </tr>
-        </thead>
-        <tbody id="holderRows"></tbody>
-      </table>
+    <!-- TOP HOLDERS -->
+    <section class="td-panel">
+      <header class="td-section-head">
+        <h2><i class="dot"></i> TOP HOLDERS</h2>
+        <div class="td-section-note">Concentration as reported by the contract risk source.</div>
+      </header>
+      <div class="td-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Wallet</th>
+              <th>Amount</th>
+              <th>Percent</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody id="holderRows"></tbody>
+        </table>
+      </div>
     </section>
 
-    <section class="panel">
-      <div class="panel-title">Wallet Relationships</div>
-      <table>
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>From</th>
-            <th>To</th>
-            <th>Amount</th>
-            <th>Time</th>
-            <th>Signature</th>
-          </tr>
-        </thead>
-        <tbody id="relationshipRows"></tbody>
-      </table>
+    <!-- WALLET RELATIONSHIPS -->
+    <section class="td-panel">
+      <header class="td-section-head">
+        <h2><i class="dot"></i> WALLET RELATIONSHIPS</h2>
+        <div class="td-section-note">Direct SOL or token edges between top holders, plus dump events.</div>
+      </header>
+      <div class="td-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>From</th>
+              <th>To</th>
+              <th>Amount</th>
+              <th>Time</th>
+              <th>Signature</th>
+            </tr>
+          </thead>
+          <tbody id="relationshipRows"></tbody>
+        </table>
+      </div>
     </section>
   </main>
 
