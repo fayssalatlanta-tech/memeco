@@ -118,3 +118,35 @@ jobs:
           OUT=$(memeco-migrate --dry-run)
           echo "$OUT"
           echo "$OUT" | grep -q "All migrations are up to date."
+
+  # Build the Vite SPA bundle and verify it produces the expected
+  # entries. The FastAPI server prefers these built artefacts when
+  # present, so a green build here means the migrated pages will
+  # render in production.
+  web-build:
+    name: Web build (Vite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SPA
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          test -f dist/pages/system/index.html
+          ls -1 dist/assets | grep -E '^system-.*\.(js|css)$'

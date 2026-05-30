@@ -275,40 +275,100 @@ Also include:
 
 ## Known Future Improvements
 
-### Vite SPA refactor (deferred — see notes)
+### Vite SPA refactor (in progress — system page migrated)
 
-Today the four interactive pages (`dashboard.html`, `whale_radar.html`,
+The four interactive pages (`dashboard.html`, `whale_radar.html`,
 `wallet_detail.html`, `token_detail.html`) are large monolithic files
-(~70-160KB each) that share a lot of structure: brand bar, KPI HUD
+(~70-160KB each) with a lot of duplicated structure: brand bar, KPI HUD
 tiles, panels, tables, signal-chain barcodes, decision-tree drawer,
-empty states. Some helpers (utils.js) and design tokens are already
-extracted to `app/static/shared/`, but the rest is duplicated by hand.
+empty states. The migration to a Vite-built SPA is now underway, with
+the **system page** done as the reference implementation.
 
-The right next architectural step is a small **Vite + Vanilla JS / Preact**
-build that:
+#### Layout
 
-1. Extracts truly-shared components (TokenSymbol, SignalChain,
-   DecisionDrawer, KpiTile, Sparkline, Pill, EmptyState, BrandBar)
-   into a `web/src/components/` tree.
-2. Keeps the FastAPI backend exactly as-is. The static files become
-   the build output (`web/dist/`) served by the existing
-   `/static/{path}` route.
-3. Lets each page declare only its content — the cyberpunk visual
-   language lives in shared components and tokens.
+```
+web/
+├── package.json            (Vite 7.x dependency, scripts)
+├── package-lock.json
+├── vite.config.js          (multi-page input map, base="/static/dist/")
+├── src/
+│   ├── styles/
+│   │   ├── tokens.css      (cyberpunk design tokens)
+│   │   └── cyberpunk.css   (shared utility classes & layout primitives)
+│   ├── lib/
+│   │   ├── api.js          (typed fetch wrappers for /api/*)
+│   │   ├── time.js         (timeAgo, timeAgoShort, formatDate)
+│   │   └── dom.js          (h`` tagged template, raw(), mount(), escapeHtml)
+│   ├── components/
+│   │   ├── BrandBar.js     (page header with nav + right slot)
+│   │   ├── OpsHud.js       (KPI HUD strip)
+│   │   ├── OpsTable.js     (cyberpunk-styled table)
+│   │   ├── ApiPill.js      (live "Updated 5s ago" pulse)
+│   │   └── ErrorCard.js    (red-edge failure card)
+│   └── pages/
+│       └── system/
+│           ├── index.html  (mount point + module entry)
+│           └── index.js    (page-specific code)
+└── dist/                   (build output — gitignored)
+    ├── pages/<slug>/index.html
+    └── assets/<entry>-<hash>.{js,css,map}
+```
 
-Why this is deferred:
+#### How FastAPI integrates
 
-* It is genuinely a day's work — Vite setup, component extraction,
-  build pipeline, FastAPI rewrite to serve from a different
-  directory, CI build job, browser cache invalidation.
-* Doing it half-way would leave the project in a broken state
-  (some pages built, others raw HTML).
-* The current monolithic pages are stable, the dashboard is fast,
-  and the design language is already consistent thanks to the
-  cyberpunk reskin and the four page redesigns.
+`app/web_server.py` holds the wiring. Two pieces matter:
 
-A future session should pick this up cleanly with a dedicated branch
-and a CI job that gates merge on a successful build.
+1. `_vite_or_static(page_slug, legacy_filename)` — the page route
+   helper. If `web/dist/pages/<slug>/index.html` exists it is served;
+   otherwise the legacy `app/static/<filename>` is served. So a page
+   that hasn't been migrated yet keeps working untouched.
+2. `/static/dist/{path}` route — serves any file under `web/dist/`
+   with the same content-type whitelist as `/static/{path}`. That is
+   what resolves the hashed `<script src="/static/dist/assets/…">`
+   tags emitted by Vite.
+
+The `/system` route already calls `_vite_or_static("system", "system.html")`.
+The other four routes (`/`, `/token`, `/whale-radar`, `/wallet`) still
+serve the legacy HTML and will be flipped one at a time as each page
+is migrated.
+
+#### Build / dev workflow
+
+```bash
+# one-time install
+cd web && npm install
+
+# production build (used by FastAPI + CI)
+npm run build
+
+# dev server with HMR — proxies /api to FastAPI on :8000
+npm run dev
+```
+
+The `web-build` job in `.github/workflows/ci.yml` runs `npm ci &&
+npm run build` and verifies the system entry chunks exist. Future
+migrations only need to add their entry to `vite.config.js`'s `input`
+map and (optionally) extend the verification step.
+
+#### Migrating the next page (recipe)
+
+1. Create `web/src/pages/<slug>/index.html` (mount point + `<script
+   type="module" src="./index.js">`).
+2. Create `web/src/pages/<slug>/index.js`. Import shared styles, use
+   shared components for everything that already exists, write
+   page-specific render logic. Use `api.<endpoint>()` from
+   `lib/api.js` to fetch data.
+3. Add the entry to `vite.config.js`'s `rollupOptions.input` map.
+4. Flip the FastAPI route: change `_static("xxx.html")` to
+   `_vite_or_static("<slug>", "xxx.html")`.
+5. `npm run build` — confirm the page renders correctly at the
+   matching URL.
+6. Once the migration is verified, delete `app/static/<slug>.html`
+   in a follow-up commit (the legacy fallback can be retired).
+
+The legacy `app/static/*.html` files stay in tree until each page is
+fully migrated and a stable Vite version exists, which keeps the
+project bisectable through the transition.
 
 ### Other deferred items
 

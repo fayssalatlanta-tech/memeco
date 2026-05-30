@@ -29,6 +29,7 @@ from app.services.whale_webhook_service import sync_whale_webhook
 
 APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
+WEB_DIST_DIR = APP_DIR.parent / "web" / "dist"
 
 NOISE_TOKEN_ADDRESSES = {
     "So11111111111111111111111111111111111111112",
@@ -1441,6 +1442,22 @@ def _static(name: str) -> Response:
     return FileResponse(path, media_type="text/html; charset=utf-8")
 
 
+def _vite_or_static(page_slug: str, legacy_filename: str) -> Response:
+    """Prefer the Vite-built page if present, fall back to the legacy
+    ``app/static/<filename>`` HTML otherwise.
+
+    The Vite build emits ``web/dist/pages/<slug>/index.html`` with hashed
+    asset references that resolve via the ``/static/dist/...`` route. We
+    only serve it when the build output is on disk so the legacy page
+    keeps working in environments where ``npm run build`` hasn't run yet
+    (e.g. before CI is wired up).
+    """
+    vite_html = WEB_DIST_DIR / "pages" / page_slug / "index.html"
+    if vite_html.is_file():
+        return FileResponse(vite_html, media_type="text/html; charset=utf-8")
+    return _static(legacy_filename)
+
+
 # Content-type whitelist for /static/{path}. Anything not on this list is 404.
 _STATIC_ASSET_CONTENT_TYPES = {
     ".css": "text/css; charset=utf-8",
@@ -1486,7 +1503,34 @@ async def page_wallet_detail() -> Response:
 
 @app.get("/system", include_in_schema=False)
 async def page_system() -> Response:
-    return _static("system.html")
+    return _vite_or_static("system", "system.html")
+
+
+@app.get("/static/dist/{path:path}", include_in_schema=False)
+async def page_vite_asset(path: str) -> Response:
+    """Serve hashed assets from the Vite build (``web/dist``).
+
+    The built HTML references files like ``/static/dist/assets/system-<hash>.js``.
+    We resolve those against ``WEB_DIST_DIR`` with the same content-type
+    whitelist used by ``page_static_asset``.
+    """
+    if not WEB_DIST_DIR.exists():
+        return Response(content="Not found", status_code=404)
+
+    candidate = (WEB_DIST_DIR / path).resolve()
+    try:
+        candidate.relative_to(WEB_DIST_DIR.resolve())
+    except ValueError:
+        return Response(content="Not found", status_code=404)
+
+    if not candidate.is_file():
+        return Response(content="Not found", status_code=404)
+
+    media_type = _STATIC_ASSET_CONTENT_TYPES.get(candidate.suffix.lower())
+    if media_type is None:
+        return Response(content="Not found", status_code=404)
+
+    return FileResponse(candidate, media_type=media_type)
 
 
 @app.get("/static/{path:path}", include_in_schema=False)

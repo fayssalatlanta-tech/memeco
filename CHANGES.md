@@ -7,6 +7,125 @@ the project.
 
 ---
 
+## 2026-05-31 — Vite SPA foundation: system page migrated, others on deck
+
+### Why
+
+The four interactive pages were monolithic 70–160KB HTML files with
+duplicated structure (brand bar, KPI HUD, panels, tables, drawers).
+We promised the architectural lift in the previous session and
+deferred it because doing it half-way would have broken the project.
+This batch does it properly: a working Vite build, one page (system)
+fully migrated as the reference, FastAPI wired to prefer the built
+artefacts, CI gating on a green build, and legacy pages kept intact
+so nothing else breaks during the transition.
+
+### What changed
+
+#### 1. New Vite project at `web/`
+
+* `web/package.json` (Vite 7.x) and `web/package-lock.json` — pinned
+  dev dependency, two scripts: `dev` (HMR proxying `/api` to the
+  FastAPI server on :8000) and `build`.
+* `web/vite.config.js` — multi-page setup. `base = "/static/dist/"`,
+  `rollupOptions.input` declares one entry per migrated page (just
+  `system` for now). Output goes to `web/dist/` with hashed asset
+  filenames.
+* `web/src/styles/tokens.css` + `cyberpunk.css` — design tokens and
+  shared utility classes / layout primitives lifted from the legacy
+  HTML files.
+* `web/src/lib/api.js` — typed fetch wrappers for the `/api/*`
+  endpoints the SPA calls (system, watchlist, summary, token-detail,
+  wallet-detail, whale-radar, scan-state, …).
+* `web/src/lib/time.js` — `timeAgo`, `timeAgoShort`, `formatDate`.
+* `web/src/lib/dom.js` — `h\`\`` tagged template, `raw()`, `mount()`,
+  `escapeHtml()` for safe DOM rendering without a heavyweight UI lib.
+* `web/src/components/BrandBar.js`, `OpsHud.js`, `OpsTable.js`,
+  `ApiPill.js`, `ErrorCard.js` — first set of shared components.
+  Each is a pure function that returns an HTML string and is
+  composed via the `h\`\`` template.
+
+#### 2. System page (Ops Deck) migrated
+
+* `web/src/pages/system/index.html` — minimal mount point + entry
+  module.
+* `web/src/pages/system/index.js` — full migration of the system
+  page, written entirely with the shared components above. Same
+  data (config, whale webhook, decisions HUD, API activity table,
+  storage / hypertable retention, recent failures) and same
+  cyberpunk visual identity as the legacy `app/static/system.html`.
+  Polls `/api/system` every 30s.
+
+#### 3. FastAPI integration in `app/web_server.py`
+
+* New `WEB_DIST_DIR = APP_DIR.parent / "web" / "dist"` constant.
+* New `_vite_or_static(page_slug, legacy_filename)` helper. Serves
+  `web/dist/pages/<slug>/index.html` if present, otherwise falls back
+  to `app/static/<filename>`. So a page that hasn't been migrated
+  yet keeps working untouched.
+* `/system` route flipped to `_vite_or_static("system", "system.html")`.
+  The other four pages (`/`, `/token`, `/whale-radar`, `/wallet`)
+  still serve the legacy HTML and will flip one at a time.
+* New `/static/dist/{path}` route. Resolves the hashed asset URLs
+  Vite emits (`/static/dist/assets/system-<hash>.js`) against
+  `WEB_DIST_DIR`, with the same content-type whitelist as
+  `/static/{path}` and the same path-traversal guard.
+
+#### 4. CI build step
+
+* `.github/workflows/ci.yml`: new `web-build` job. Sets up Node 20,
+  runs `npm ci && npm run build` in `web/`, then verifies the
+  `dist/pages/system/index.html` and the system entry chunks exist.
+  Future migrations only need to add their entry to
+  `vite.config.js`'s input map and (optionally) extend the
+  verification step.
+
+#### 5. .gitignore + docs
+
+* `.gitignore`: excludes `web/node_modules/`, `web/dist/`, and
+  `web/.vite/` so the build output never lands in git.
+* `DEVELOPMENT_GUIDE.md`: rewritten Vite section with the actual
+  layout, FastAPI integration story, dev/build workflow, and a
+  step-by-step recipe for migrating the next page.
+
+### Tests
+
+* All 72 unit tests still pass.
+* End-to-end smoke via FastAPI TestClient:
+  * `GET /system` → 200, body references `/static/dist/assets/system-…js`.
+  * `GET /static/dist/assets/system-<hash>.js` → 200, correct content type.
+  * `GET /static/dist/assets/system-<hash>.css` → 200, correct content type.
+  * Path traversal blocked (`/static/dist/../web_server.py` → 404).
+  * Missing files 404 cleanly.
+* `npm run build` produces:
+  * `web/dist/pages/system/index.html`
+  * `web/dist/assets/system-<hash>.js` (~9 KB)
+  * `web/dist/assets/system-<hash>.css` (~6 KB)
+
+### Files touched
+
+* `web/package.json`, `web/package-lock.json`, `web/vite.config.js`
+* `web/src/styles/tokens.css`, `web/src/styles/cyberpunk.css`
+* `web/src/lib/api.js`, `web/src/lib/time.js`, `web/src/lib/dom.js`
+* `web/src/components/BrandBar.js`, `OpsHud.js`, `OpsTable.js`,
+  `ApiPill.js`, `ErrorCard.js`
+* `web/src/pages/system/index.html`, `index.js`
+* `app/web_server.py` — `WEB_DIST_DIR`, `_vite_or_static`,
+  `page_vite_asset` route
+* `.github/workflows/ci.yml` — `web-build` job
+* `.gitignore`, `DEVELOPMENT_GUIDE.md`
+
+### Next steps for whoever picks this up
+
+* Migrate the next page using the recipe in `DEVELOPMENT_GUIDE.md`
+  → "Migrating the next page". Recommended order: dashboard
+  (highest traffic, biggest payoff), whale_radar, token_detail,
+  wallet_detail.
+* When all four are migrated, retire the legacy
+  `app/static/*.html` files and the `_vite_or_static` fallback.
+
+---
+
 ## 2026-05-26 — UX polish batch: Ops Deck, whale ticker, browser notifications, tier hovers
 
 ### Why
@@ -64,7 +183,7 @@ edges of the UI.
   its Y-axis, MINNOW bubbles up + tints orange, BAGHOLDER shakes
   (sad reaction). Honors prefers-reduced-motion.
 
-#### 5. Vite SPA refactor — deferred
+#### 5. Vite SPA refactor — deferred to its own session
 
 * This one was promised in the original roadmap but is genuinely
   an architectural lift (set up Vite, extract reusable components,
@@ -73,6 +192,8 @@ edges of the UI.
   the project in a half-broken state.
 * Documented as a follow-up in `DEVELOPMENT_GUIDE.md` so an expert
   picking it up later has the right context and constraints.
+* **Update (2026-05-31):** done as a separate batch. See the entry
+  at the top of this file.
 
 ### Tests
 

@@ -7,3 +7,10 @@ venv/
 *.egg-info/
 dist/
 build/
+
+# Vite (web/) build output and deps
+web/node_modules/
+web/dist/
+web/.vite/
+
+.vscode/
