@@ -4,40 +4,48 @@
  * Loaded BEFORE each page's inline <style>, so any page-local :root
  * declaration (e.g. a different --bg) wins the cascade.
  *
- * Each page may override individual tokens. Only declare here what is
- * either (a) genuinely shared by every page or (b) a sensible default
- * for new pages.
+ * THEME: high-contrast cyberpunk dark — true black base, neon-orange
+ * accent, pure-white priority text, gray secondary text. Signal colors
+ * (green/red/yellow) are kept but intentionally secondary to the
+ * black/orange dominance.
  */
 
 :root {
   color-scheme: dark;
 
-  /* Surface palette (newer pages: whale_radar, wallet_detail) */
-  --bg: #08090d;
-  --panel: #15171d;
-  --panel-2: #1b1e25;
-  --panel-3: #171924;
+  /* Surface palette */
+  --bg: #000000;          /* true black base */
+  --panel: #121212;       /* primary card surface */
+  --panel-2: #1e1e1e;     /* raised / secondary surface */
+  --panel-3: #181818;     /* nested surface */
 
-  /* Lines / dividers */
-  --line: rgba(255, 255, 255, .10);
-  --line-strong: rgba(255, 255, 255, .16);
+  /* Lines / dividers — faint white plus an orange-tinted "strong" */
+  --line: rgba(255, 255, 255, .08);
+  --line-strong: rgba(255, 102, 0, .45);
 
   /* Text */
-  --text: #f4f6fb;
-  --muted: #9aa1b3;
-  --soft: #c4cad6;
+  --text: #ffffff;        /* high priority */
+  --muted: #a0a0a0;       /* low priority / labels */
+  --soft: #cfcfcf;
 
-  /* Semantic palette (newer pages use these names directly) */
-  --green: #74e39b;
-  --green-bg: rgba(116, 227, 155, .12);
-  --red: #ff5f7a;
-  --red-bg: rgba(255, 95, 122, .12);
-  --yellow: #ffd166;
-  --yellow-bg: rgba(255, 209, 102, .12);
-  --blue: #75a7ff;
-  --blue-bg: rgba(117, 167, 255, .12);
-  --purple: #bba7ff;
-  --purple-bg: rgba(187, 167, 255, .13);
+  /* Primary accent — neon orange */
+  --accent: #ff6600;
+  --accent-strong: #ff8800;
+  --accent-bg: rgba(255, 102, 0, .12);
+  --accent-glow: rgba(255, 102, 0, .35);
+
+  /* Semantic palette (secondary to black/orange) */
+  --green: #2fe28a;
+  --green-bg: rgba(47, 226, 138, .12);
+  --red: #ff4d5e;
+  --red-bg: rgba(255, 77, 94, .12);
+  --yellow: #ffc24b;
+  --yellow-bg: rgba(255, 194, 75, .12);
+  --blue: #5aa2ff;
+  --blue-bg: rgba(90, 162, 255, .12);
+  --purple: #ff8800;          /* legacy "purple" remapped to orange */
+  --purple-bg: rgba(255, 136, 0, .13);
+  --cyan: #ff8800;            /* legacy "cyan" remapped to orange */
 }
 
 /* Universal reset — every page already opts in to this */

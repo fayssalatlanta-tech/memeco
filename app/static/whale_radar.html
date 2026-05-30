@@ -9,25 +9,28 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #05060a;
-      --panel: #0c0d14;
-      --panel-2: #11131d;
-      --panel-3: #171924;
-      --line: rgba(255, 255, 255, .10);
-      --line-strong: rgba(255, 255, 255, .16);
-      --text: #f7f7fb;
-      --muted: #9da4b8;
-      --soft: #c7cce0;
-      --green: #38d995;
-      --green-bg: rgba(56, 217, 149, .12);
-      --red: #ff6478;
-      --red-bg: rgba(255, 100, 120, .13);
-      --yellow: #ffd166;
-      --yellow-bg: rgba(255, 209, 102, .13);
-      --blue: #70a8ff;
-      --blue-bg: rgba(112, 168, 255, .13);
-      --purple: #bba7ff;
-      --purple-bg: rgba(187, 167, 255, .13);
+      --bg: #000000;
+      --panel: #121212;
+      --panel-2: #1e1e1e;
+      --panel-3: #181818;
+      --line: rgba(255, 255, 255, .08);
+      --line-strong: rgba(255, 102, 0, .45);
+      --text: #ffffff;
+      --muted: #a0a0a0;
+      --soft: #cfcfcf;
+      --accent: #ff6600;
+      --accent-strong: #ff8800;
+      --accent-bg: rgba(255, 102, 0, .12);
+      --green: #2fe28a;
+      --green-bg: rgba(47, 226, 138, .12);
+      --red: #ff4d5e;
+      --red-bg: rgba(255, 77, 94, .13);
+      --yellow: #ffc24b;
+      --yellow-bg: rgba(255, 194, 75, .13);
+      --blue: #5aa2ff;
+      --blue-bg: rgba(255, 136, 0, .13);
+      --purple: #ff8800;
+      --purple-bg: rgba(255, 102, 0, .13);
     }
 
     * { box-sizing: border-box; }
@@ -61,7 +64,7 @@
 
     button.primary {
       background: #d7cdfd;
-      color: #070711;
+      color: #000000;
       border-color: rgba(215, 205, 253, .74);
     }
 
@@ -72,7 +75,7 @@
 
     button.primary:hover {
       background: #c5b8ff;
-      color: #05060a;
+      color: #000000;
     }
 
     .shell {
@@ -89,7 +92,7 @@
       margin-bottom: 14px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #080910;
+      background: #0a0a0a;
       padding: 14px;
     }
 
@@ -107,7 +110,7 @@
       place-items: center;
       border: 1px solid var(--line-strong);
       border-radius: 8px;
-      background: linear-gradient(135deg, #141722, #0a0b11);
+      background: linear-gradient(135deg, #1e1e1e, #0a0a0a);
       color: var(--purple);
       font-weight: 950;
       font-size: 18px;
@@ -270,9 +273,9 @@
     }
 
     .confluence-card {
-      border: 1px solid rgba(112, 168, 255, .30);
+      border: 1px solid rgba(255, 136, 0, .30);
       border-radius: 8px;
-      background: rgba(112, 168, 255, .08);
+      background: rgba(255, 136, 0, .08);
       padding: 10px;
       min-height: 160px;
     }
@@ -336,7 +339,7 @@
     }
 
     .wallet-row.selected {
-      background: rgba(187, 167, 255, .09);
+      background: rgba(255, 102, 0, .09);
       box-shadow: inset 3px 0 0 var(--purple);
     }
 
@@ -367,7 +370,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-      color: #d8ceff;
+      color: #ffb37a;
       font-weight: 850;
     }
 
@@ -396,8 +399,8 @@
       flex: 0 0 28px;
       padding: 0;
       border-radius: 8px;
-      color: #d8ceff;
-      background: rgba(187, 167, 255, .10);
+      color: #ffb37a;
+      background: rgba(255, 102, 0, .10);
       font-size: 13px;
       font-weight: 950;
     }
@@ -449,7 +452,7 @@
 
     .pill.token-in, .pill.token-out, .job-status.running {
       color: #d6ccff;
-      border-color: rgba(187, 167, 255, .38);
+      border-color: rgba(255, 102, 0, .38);
       background: var(--purple-bg);
     }
 
@@ -528,10 +531,10 @@
       max-width: 260px;
       min-height: 28px;
       align-items: center;
-      border: 1px solid rgba(187, 167, 255, .38);
+      border: 1px solid rgba(255, 102, 0, .38);
       border-radius: 8px;
       padding: 3px 8px;
-      color: #d8ceff;
+      color: #ffb37a;
       background: var(--purple-bg);
       font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
       font-size: 12px;
