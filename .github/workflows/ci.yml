@@ -149,4 +149,6 @@ jobs:
       - name: Verify build output
         run: |
           test -f dist/pages/system/index.html
+          test -f dist/pages/wallet/index.html
           ls -1 dist/assets | grep -E '^system-.*\.(js|css)$'
+          ls -1 dist/assets | grep -E '^wallet-.*\.(js|css)$'

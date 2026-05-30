@@ -34,6 +34,7 @@ export default defineConfig({
         // One entry per migrated page. Add new keys as more pages move
         // to the Vite build.
         system: resolve(__dirname, "src/pages/system/index.html"),
+        wallet: resolve(__dirname, "src/pages/wallet/index.html"),
       },
     },
   },

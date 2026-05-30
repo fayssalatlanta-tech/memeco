@@ -1498,7 +1498,7 @@ async def page_whale_radar() -> Response:
 
 @app.get("/wallet", include_in_schema=False)
 async def page_wallet_detail() -> Response:
-    return _static("wallet_detail.html")
+    return _vite_or_static("wallet", "wallet_detail.html")
 
 
 @app.get("/system", include_in_schema=False)
