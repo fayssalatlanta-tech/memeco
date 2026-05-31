@@ -942,49 +942,31 @@
 
     .table-wrap {
       overflow: auto;
+      max-width: 100%;
     }
 
     table {
       width: 100%;
-      min-width: 1680px;
+      min-width: 1180px;
       border-collapse: collapse;
       table-layout: fixed;
     }
 
-    col.token-col {
-      width: 290px;
-    }
-
-    col.opportunity-col {
-      width: 390px;
-    }
-
-    col.safety-col {
-      width: 190px;
-    }
-
-    col.liquidity-col {
-      width: 260px;
-    }
-
-    col.wallet-col {
-      width: 300px;
-    }
-
-    col.decision-col {
-      width: 180px;
-    }
-
-    col.updated-col {
-      width: 110px;
-    }
+    col.token-col       { width: 230px; }
+    col.signal-col      { width: 200px; }
+    col.opportunity-col { width: 290px; }
+    col.safety-col      { width: 160px; }
+    col.liquidity-col   { width: 220px; }
+    col.wallet-col      { width: 240px; }
+    col.decision-col    { width: 200px; }
 
     th, td {
-      padding: 12px 14px;
+      padding: 8px 10px;
       text-align: left;
       border-bottom: 1px solid rgba(255, 255, 255, .08);
       vertical-align: middle;
       white-space: normal;
+      font-size: 12px;
     }
 
     th {
@@ -1883,6 +1865,40 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    /* Vertical stacked Liq / MCap / Vol / B/S cell. Replaces the wider
+       6-tile market-snapshot grid in the Liquidity column so each row
+       is shorter and the table needs less horizontal scroll. */
+    .liq-mcap-stack {
+      display: grid;
+      gap: 2px;
+      margin-top: 6px;
+      font: 700 11px var(--mono);
+    }
+    .liq-mcap-stack .liq-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: baseline;
+    }
+    .liq-mcap-stack .lbl {
+      color: var(--muted);
+      font-size: 9px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .liq-mcap-stack .val { color: #fff; }
+    .liq-mcap-stack .sub .val { color: rgba(255, 255, 255, .68); }
+    .liq-mcap-stack .sub .lbl { opacity: .8; }
+
+    /* Decision cell: now also hosts the timestamp + row toolbar so we
+       could drop the standalone Updated column. */
+    .decision-cell .decision-time {
+      margin-top: 6px;
+      font: 600 10px var(--mono);
+      letter-spacing: .04em;
+      color: var(--muted);
+    }
+
     .market-stat {
       min-width: 0;
       min-height: 60px;
@@ -2298,6 +2314,15 @@
         overflow: visible;
       }
 
+      /* Drop sticky behavior on phone — cards stack vertically. */
+      .cb-table-card thead th:first-child,
+      .cb-table-card thead th:last-child,
+      .cb-table-card tbody td:first-child,
+      .cb-table-card tbody td:last-child {
+        position: static;
+        box-shadow: none;
+      }
+
       .table-wrap table,
       .table-wrap thead,
       .table-wrap tbody,
@@ -2443,15 +2468,23 @@
     }
 
     /* ---- Layout shell --------------------------------------------------- */
+    /* Page-level overflow guard: clamp the layout to the viewport so the
+       horizontal scroll lives inside the table card, never the page. */
+    html, body { max-width: 100vw; overflow-x: hidden; }
+
     .cb-shell {
       display: grid;
       grid-template-columns: 1fr;
       gap: var(--gutter);
       padding: 16px var(--edge) 36px;
       max-width: 1640px;
+      width: 100%;
       margin: 0 auto;
       min-height: 100vh;
+      min-width: 0;             /* don't get pushed wide by a child */
+      overflow-x: hidden;
     }
+    .cb-shell > * { min-width: 0; }   /* same trick for grid children */
 
     /* The legacy app-shell/sidebar/dashboard-main wrappers are not rendered
        in the new markup at all, so no override is needed for them. */
@@ -3035,10 +3068,10 @@
     .cb-table-card table th {
       background: #0a0a0a;
       color: var(--muted) !important;
-      font: 900 10px var(--mono);
-      letter-spacing: .2em;
+      font: 900 9px var(--mono);
+      letter-spacing: .18em;
       text-transform: uppercase;
-      padding: 12px 14px;
+      padding: 8px 10px;
       border-bottom: 1px solid rgba(255, 255, 255, .08);
     }
 
@@ -3047,11 +3080,43 @@
     }
 
     .cb-table-card tbody td {
-      padding: 14px;
+      padding: 8px 10px;
       vertical-align: middle;
       border-bottom: 1px solid rgba(255, 255, 255, .04);
       background: transparent;
       position: relative;
+      font-size: 11px;
+    }
+
+    /* Sticky token column on the left and decision column on the right
+       so the row's identity and verdict stay visible while the user
+       scrolls through the pipeline-stage columns. */
+    .cb-table-card thead th:first-child,
+    .cb-table-card tbody td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      background: #0a0a0a;
+    }
+    .cb-table-card tbody tr:nth-child(even) td:first-child {
+      background: #0d0d0d;       /* keep zebra subtle even on sticky */
+    }
+    .cb-table-card thead th:last-child,
+    .cb-table-card tbody td:last-child {
+      position: sticky;
+      right: 0;
+      z-index: 3;
+      background: #0a0a0a;
+      box-shadow: -8px 0 14px -8px rgba(0, 0, 0, .6);
+    }
+    .cb-table-card thead th:first-child,
+    .cb-table-card thead th:last-child {
+      z-index: 4;                /* sticky-th must outrank sticky-td */
+    }
+    .cb-table-card thead th:first-child { box-shadow:  8px 0 14px -8px rgba(0, 0, 0, .6); }
+    .cb-table-card tbody tr:hover td:first-child,
+    .cb-table-card tbody tr:hover td:last-child {
+      background: rgba(20, 18, 12, .98);
     }
 
     /* Edge stripe = decision tone, applied to first cell of each row */
@@ -3271,6 +3336,88 @@
       background: var(--accent);
       box-shadow: 0 0 18px rgba(255, 102, 0, .4);
     }
+
+    /* Column-visibility gear: small button + dropdown that toggles
+       table columns on/off. State persists in localStorage so power
+       users can keep their preferred layout across reloads. */
+    .cb-cols-wrap { position: relative; }
+    .cb-cols-button {
+      width: 32px;
+      height: 28px;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, .04);
+      color: var(--muted);
+      font-size: 14px;
+      cursor: pointer;
+      transition: color .14s ease, border-color .14s ease, background .14s ease;
+      box-shadow: none;
+    }
+    .cb-cols-button:hover,
+    .cb-cols-button[aria-expanded="true"] {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: rgba(255, 102, 0, .08);
+    }
+    .cb-cols-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      min-width: 220px;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 10px;
+      background: rgba(8, 8, 10, .96);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, .55);
+      z-index: 20;
+    }
+    .cb-cols-menu[hidden] { display: none; }
+    .cb-cols-title {
+      margin: 0 0 8px;
+      font: 900 10px var(--mono);
+      letter-spacing: .2em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .cb-cols-menu label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 6px;
+      border-radius: 6px;
+      color: var(--text);
+      font: 700 11px var(--mono);
+      letter-spacing: .04em;
+      cursor: pointer;
+    }
+    .cb-cols-menu label:hover { background: rgba(255, 255, 255, .06); }
+    .cb-cols-menu input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      margin: 0;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    /* Hide a column when the toggle says so. We attach data attrs to
+       the table card and use attribute selectors so JS only writes one
+       attribute per click rather than walking every cell. */
+    .cb-table-card[data-hide-signal="1"]      col.signal-col,
+    .cb-table-card[data-hide-signal="1"]      thead th:nth-child(2),
+    .cb-table-card[data-hide-signal="1"]      tbody td:nth-child(2) { display: none; }
+    .cb-table-card[data-hide-opportunity="1"] col.opportunity-col,
+    .cb-table-card[data-hide-opportunity="1"] thead th:nth-child(3),
+    .cb-table-card[data-hide-opportunity="1"] tbody td:nth-child(3) { display: none; }
+    .cb-table-card[data-hide-liquidity="1"]   col.liquidity-col,
+    .cb-table-card[data-hide-liquidity="1"]   thead th:nth-child(4),
+    .cb-table-card[data-hide-liquidity="1"]   tbody td:nth-child(4) { display: none; }
+    .cb-table-card[data-hide-wallet="1"]      col.wallet-col,
+    .cb-table-card[data-hide-wallet="1"]      thead th:nth-child(5),
+    .cb-table-card[data-hide-wallet="1"]      tbody td:nth-child(5) { display: none; }
 
     /* Signal-chain legend: thin bar above the table explaining the column */
     .cb-stream-legend {
@@ -3704,6 +3851,24 @@
             <button type="button" class="cb-view-btn" data-view="tape" role="tab" aria-selected="false" title="Chronological tape view">≡ TAPE</button>
             <button type="button" class="cb-view-btn" data-view="cockpit" role="tab" aria-selected="false" title="Detailed card grid">▣ COCKPIT</button>
           </div>
+          <div class="cb-cols-wrap">
+            <button
+              type="button"
+              id="colsButton"
+              class="cb-cols-button"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-label="Show or hide columns"
+              title="Show / hide columns"
+            >⚙</button>
+            <div class="cb-cols-menu" id="colsMenu" hidden role="menu" aria-label="Column visibility">
+              <div class="cb-cols-title">Columns</div>
+              <label><input type="checkbox" data-col="signal"      checked> Signal Chain</label>
+              <label><input type="checkbox" data-col="opportunity" checked> Opportunity</label>
+              <label><input type="checkbox" data-col="liquidity"   checked> Liquidity / MCap</label>
+              <label><input type="checkbox" data-col="wallet"      checked> Wallet</label>
+            </div>
+          </div>
           <div class="table-note cb-table-count" id="tableCount">0 TOKENS</div>
         </div>
       </header>
@@ -3728,17 +3893,15 @@
             <col class="liquidity-col">
             <col class="wallet-col">
             <col class="decision-col">
-            <col class="updated-col">
           </colgroup>
           <thead>
             <tr>
               <th class="sortable" data-sort-key="symbol">Token<span class="sort-arrow" aria-hidden="true">↕</span></th>
               <th>Signal Chain</th>
               <th class="sortable" data-sort-key="opportunity">Opportunity<span class="sort-arrow" aria-hidden="true">↕</span></th>
-              <th class="sortable" data-sort-key="liquidity">Liquidity<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="liquidity">Liq / MCap<span class="sort-arrow" aria-hidden="true">↕</span></th>
               <th class="sortable" data-sort-key="manipulation">Wallet<span class="sort-arrow" aria-hidden="true">↕</span></th>
               <th class="sortable" data-sort-key="decision">Decision<span class="sort-arrow" aria-hidden="true">↕</span></th>
-              <th class="sortable" data-sort-key="updated">Updated<span class="sort-arrow" aria-hidden="true">↕</span></th>
             </tr>
           </thead>
           <tbody id="watchlistRows"></tbody>
@@ -4306,19 +4469,25 @@
       const trapValue = details.liquidity_trap_score
         ? `${liquidityTrapScore(row)}/100`
         : "";
+      // Liquidity + market cap as a vertical stacked cell. Saves the
+      // horizontal real estate the old 6-tile market-snapshot grid ate
+      // and keeps both numbers visible side-by-side without scrolling.
+      const liqValue = formatLiquidityValue(row, row.liquidity_usd || details.liquidity_usd);
+      const mcapValue = formatMoney(row.market_cap_usd || details.market_cap_usd);
+      const vol24Value = formatMoney(row.volume_24h_usd || details.volume_24h_usd);
+      const buys = asNumber(row.buys_24h);
+      const sells = asNumber(row.sells_24h);
       return `
         <div class="table-cell">
           <div class="signal-pills">
             ${stagePill(row, 2, "Trap", trapValue, statusTone(details.liquidity_trap_status))}
             ${stagePill(row, 2, "", lpLock.lp_lock_status ? lpLabel : "", statusTone(lpLock.lp_lock_status), lpLock.lp_reason || "")}
           </div>
-          <div class="market-snapshot compact">
-            ${marketStat("Liq", formatLiquidityValue(row, row.liquidity_usd || details.liquidity_usd))}
-            ${marketStat("MCap", formatMoney(row.market_cap_usd || details.market_cap_usd))}
-            ${marketStat("Vol 24h", formatMoney(row.volume_24h_usd || details.volume_24h_usd))}
-            ${marketStat("Buys", asNumber(row.buys_24h))}
-            ${marketStat("Sells", asNumber(row.sells_24h))}
-            ${marketStat("B/S", `${asNumber(row.buys_24h)}/${asNumber(row.sells_24h)}`)}
+          <div class="liq-mcap-stack">
+            <div class="liq-row"><span class="lbl">Liq</span><span class="val">${escapeHtml(liqValue)}</span></div>
+            <div class="liq-row"><span class="lbl">MCap</span><span class="val">${escapeHtml(mcapValue)}</span></div>
+            <div class="liq-row sub"><span class="lbl">Vol 24h</span><span class="val">${escapeHtml(vol24Value)}</span></div>
+            <div class="liq-row sub"><span class="lbl">B/S 24h</span><span class="val">${buys}/${sells}</span></div>
           </div>
         </div>
       `;
@@ -4361,14 +4530,19 @@
       const stopBadge = stop
         ? `<span class="stage-stop" title="Pipeline halted at ${escapeHtml(stop)} — downstream stages were skipped on purpose">⛔ Stopped at ${escapeHtml(stop)}</span>`
         : "";
+      // Timestamp + per-row toolbar live inside the Decision cell now
+      // that it's the rightmost (sticky) column. Saves a whole column
+      // of horizontal real estate.
       return `
-        <div class="table-cell">
+        <div class="table-cell decision-cell">
           <div class="cell-primary">
             <span class="badge ${badgeClass(row.final_watchlist_status)}">${escapeHtml(finalDecisionLabel(row.final_watchlist_status))}</span>
             ${decisionFlipBadge(row)}
           </div>
           ${stopBadge}
           <div class="cell-sub two-lines">${escapeHtml(row.final_watchlist_reason || "No final reason")}</div>
+          <div class="decision-time" title="${escapeHtml(row.created_at || "")}">${escapeHtml(formatShortDate(row.created_at))}</div>
+          ${rowToolbar(row)}
         </div>
       `;
     }
@@ -4703,11 +4877,11 @@
     }
 
     function renderSkeletonRows(count = 6) {
-      // 7 columns to match the watchlist table. Token column gets a
-      // two-line skeleton (logo + symbol + name); other columns alternate
-      // widths so the table doesn't look like a striped barcode.
-      const widths = ["wide", "medium", "wide", "medium", "wide", "short", "medium"];
-      const cells = widths.map((w) => `<td><div class="skeleton-block ${w}"></div></td>`).join("");
+      // 6 columns to match the watchlist table (Token / Signal / Opp /
+      // Liq / Wallet / Decision). Token column gets a two-line skeleton
+      // (logo + symbol + name); other columns alternate widths so the
+      // table doesn't look like a striped barcode.
+      const widths = ["wide", "medium", "wide", "medium", "wide", "short"];
       const tokenCell = `
         <td>
           <div class="skeleton-block medium"></div>
@@ -4840,7 +5014,7 @@
     function renderRows(rows) {
       tableCountEl.textContent = `${rows.length} TOKENS`;
       if (!rows.length) {
-        rowsEl.innerHTML = `<tr><td colspan="7"><div class="cb-stream-empty">No watchlist decisions match the active filters.</div></td></tr>`;
+        rowsEl.innerHTML = `<tr><td colspan="6"><div class="cb-stream-empty">No watchlist decisions match the active filters.</div></td></tr>`;
         return;
       }
       rowsEl.innerHTML = rows.map((row) => `
@@ -4851,10 +5025,6 @@
           <td data-label="Liquidity">${formatTableLiquidity(row)}</td>
           <td data-label="Wallet">${formatTableWallet(row)}</td>
           <td data-label="Decision">${formatTableDecision(row)}</td>
-          <td data-label="Updated">
-            <div class="table-cell"><div class="cell-sub">${escapeHtml(formatShortDate(row.created_at))}</div></div>
-            ${rowToolbar(row)}
-          </td>
         </tr>
       `).join("");
     }
@@ -4978,6 +5148,81 @@
       if (!btn) return;
       applyView(btn.dataset.view);
     });
+
+    // ---- Column visibility -------------------------------------------
+    //
+    // The gear button next to the view switcher opens a small dropdown
+    // with one checkbox per togglable pipeline column (Signal / Opp /
+    // Liquidity / Wallet). Token and Decision are always visible
+    // because they are the sticky anchors. Hidden state lives on the
+    // <section class="cb-table-card"> element via `data-hide-<name>="1"`
+    // attributes; the CSS selectors above hide the matching col + th +
+    // td. Preference persists in localStorage.
+    const COLUMN_PREFS_KEY = "memeco.dashboard.columns";
+    const COLUMN_KEYS = ["signal", "opportunity", "liquidity", "wallet"];
+    const streamCardEl = document.querySelector("#streamCard");
+    const colsButtonEl = document.querySelector("#colsButton");
+    const colsMenuEl = document.querySelector("#colsMenu");
+
+    function loadColumnPrefs() {
+      try {
+        const raw = localStorage.getItem(COLUMN_PREFS_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch (e) {
+        return {};
+      }
+    }
+    function saveColumnPrefs(prefs) {
+      try { localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(prefs)); }
+      catch (e) { /* ignore quota / private mode errors */ }
+    }
+    function applyColumnPrefs(prefs) {
+      COLUMN_KEYS.forEach((key) => {
+        const hidden = !!prefs[key];
+        if (hidden) streamCardEl.setAttribute(`data-hide-${key}`, "1");
+        else streamCardEl.removeAttribute(`data-hide-${key}`);
+        const checkbox = colsMenuEl?.querySelector(`input[data-col="${key}"]`);
+        if (checkbox) checkbox.checked = !hidden;
+      });
+    }
+    const columnPrefs = loadColumnPrefs();
+    applyColumnPrefs(columnPrefs);
+
+    if (colsButtonEl && colsMenuEl) {
+      const closeMenu = () => {
+        colsMenuEl.hidden = true;
+        colsButtonEl.setAttribute("aria-expanded", "false");
+      };
+      colsButtonEl.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const open = colsMenuEl.hidden;
+        colsMenuEl.hidden = !open;
+        colsButtonEl.setAttribute("aria-expanded", String(open));
+      });
+      colsMenuEl.addEventListener("click", (event) => event.stopPropagation());
+      colsMenuEl.addEventListener("change", (event) => {
+        const checkbox = event.target.closest("input[data-col]");
+        if (!checkbox) return;
+        const key = checkbox.dataset.col;
+        if (!COLUMN_KEYS.includes(key)) return;
+        const hidden = !checkbox.checked;
+        if (hidden) columnPrefs[key] = true;
+        else delete columnPrefs[key];
+        saveColumnPrefs(columnPrefs);
+        applyColumnPrefs(columnPrefs);
+      });
+      // Click anywhere else / ESC closes the menu.
+      document.addEventListener("click", (event) => {
+        if (colsMenuEl.hidden) return;
+        if (event.target.closest("#colsMenu, #colsButton")) return;
+        closeMenu();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !colsMenuEl.hidden) closeMenu();
+      });
+    }
 
     function renderDashboardRows(rows, allRows = rows) {
       // Always run diffs against the full unfiltered set so a status
@@ -6063,7 +6308,7 @@
         tickFreshness();
       } catch (error) {
         setFreshness("Update failed", "error");
-        rowsEl.innerHTML = `<tr><td class="empty" colspan="7">Dashboard request failed.</td></tr>`;
+        rowsEl.innerHTML = `<tr><td class="empty" colspan="6">Dashboard request failed.</td></tr>`;
       } finally {
         watchlistInFlight = false;
         scheduleNextRefresh();

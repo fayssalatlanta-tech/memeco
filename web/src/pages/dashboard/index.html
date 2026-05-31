@@ -163,6 +163,24 @@
             <button type="button" class="cb-view-btn" data-view="tape" role="tab" aria-selected="false" title="Chronological tape view">≡ TAPE</button>
             <button type="button" class="cb-view-btn" data-view="cockpit" role="tab" aria-selected="false" title="Detailed card grid">▣ COCKPIT</button>
           </div>
+          <div class="cb-cols-wrap">
+            <button
+              type="button"
+              id="colsButton"
+              class="cb-cols-button"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-label="Show or hide columns"
+              title="Show / hide columns"
+            >⚙</button>
+            <div class="cb-cols-menu" id="colsMenu" hidden role="menu" aria-label="Column visibility">
+              <div class="cb-cols-title">Columns</div>
+              <label><input type="checkbox" data-col="signal"      checked> Signal Chain</label>
+              <label><input type="checkbox" data-col="opportunity" checked> Opportunity</label>
+              <label><input type="checkbox" data-col="liquidity"   checked> Liquidity / MCap</label>
+              <label><input type="checkbox" data-col="wallet"      checked> Wallet</label>
+            </div>
+          </div>
           <div class="table-note cb-table-count" id="tableCount">0 TOKENS</div>
         </div>
       </header>
@@ -187,17 +205,15 @@
             <col class="liquidity-col">
             <col class="wallet-col">
             <col class="decision-col">
-            <col class="updated-col">
           </colgroup>
           <thead>
             <tr>
               <th class="sortable" data-sort-key="symbol">Token<span class="sort-arrow" aria-hidden="true">↕</span></th>
               <th>Signal Chain</th>
               <th class="sortable" data-sort-key="opportunity">Opportunity<span class="sort-arrow" aria-hidden="true">↕</span></th>
-              <th class="sortable" data-sort-key="liquidity">Liquidity<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="liquidity">Liq / MCap<span class="sort-arrow" aria-hidden="true">↕</span></th>
               <th class="sortable" data-sort-key="manipulation">Wallet<span class="sort-arrow" aria-hidden="true">↕</span></th>
               <th class="sortable" data-sort-key="decision">Decision<span class="sort-arrow" aria-hidden="true">↕</span></th>
-              <th class="sortable" data-sort-key="updated">Updated<span class="sort-arrow" aria-hidden="true">↕</span></th>
             </tr>
           </thead>
           <tbody id="watchlistRows"></tbody>

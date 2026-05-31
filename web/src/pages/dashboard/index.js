@@ -582,19 +582,25 @@ window.MemecoUtils = Object.freeze({
       const trapValue = details.liquidity_trap_score
         ? `${liquidityTrapScore(row)}/100`
         : "";
+      // Liquidity + market cap as a vertical stacked cell. Saves the
+      // horizontal real estate the old 6-tile market-snapshot grid ate
+      // and keeps both numbers visible side-by-side without scrolling.
+      const liqValue = formatLiquidityValue(row, row.liquidity_usd || details.liquidity_usd);
+      const mcapValue = formatMoney(row.market_cap_usd || details.market_cap_usd);
+      const vol24Value = formatMoney(row.volume_24h_usd || details.volume_24h_usd);
+      const buys = asNumber(row.buys_24h);
+      const sells = asNumber(row.sells_24h);
       return `
         <div class="table-cell">
           <div class="signal-pills">
             ${stagePill(row, 2, "Trap", trapValue, statusTone(details.liquidity_trap_status))}
             ${stagePill(row, 2, "", lpLock.lp_lock_status ? lpLabel : "", statusTone(lpLock.lp_lock_status), lpLock.lp_reason || "")}
           </div>
-          <div class="market-snapshot compact">
-            ${marketStat("Liq", formatLiquidityValue(row, row.liquidity_usd || details.liquidity_usd))}
-            ${marketStat("MCap", formatMoney(row.market_cap_usd || details.market_cap_usd))}
-            ${marketStat("Vol 24h", formatMoney(row.volume_24h_usd || details.volume_24h_usd))}
-            ${marketStat("Buys", asNumber(row.buys_24h))}
-            ${marketStat("Sells", asNumber(row.sells_24h))}
-            ${marketStat("B/S", `${asNumber(row.buys_24h)}/${asNumber(row.sells_24h)}`)}
+          <div class="liq-mcap-stack">
+            <div class="liq-row"><span class="lbl">Liq</span><span class="val">${escapeHtml(liqValue)}</span></div>
+            <div class="liq-row"><span class="lbl">MCap</span><span class="val">${escapeHtml(mcapValue)}</span></div>
+            <div class="liq-row sub"><span class="lbl">Vol 24h</span><span class="val">${escapeHtml(vol24Value)}</span></div>
+            <div class="liq-row sub"><span class="lbl">B/S 24h</span><span class="val">${buys}/${sells}</span></div>
           </div>
         </div>
       `;
@@ -637,14 +643,19 @@ window.MemecoUtils = Object.freeze({
       const stopBadge = stop
         ? `<span class="stage-stop" title="Pipeline halted at ${escapeHtml(stop)} — downstream stages were skipped on purpose">⛔ Stopped at ${escapeHtml(stop)}</span>`
         : "";
+      // Timestamp + per-row toolbar live inside the Decision cell now
+      // that it's the rightmost (sticky) column. Saves a whole column
+      // of horizontal real estate.
       return `
-        <div class="table-cell">
+        <div class="table-cell decision-cell">
           <div class="cell-primary">
             <span class="badge ${badgeClass(row.final_watchlist_status)}">${escapeHtml(finalDecisionLabel(row.final_watchlist_status))}</span>
             ${decisionFlipBadge(row)}
           </div>
           ${stopBadge}
           <div class="cell-sub two-lines">${escapeHtml(row.final_watchlist_reason || "No final reason")}</div>
+          <div class="decision-time" title="${escapeHtml(row.created_at || "")}">${escapeHtml(formatShortDate(row.created_at))}</div>
+          ${rowToolbar(row)}
         </div>
       `;
     }
@@ -979,11 +990,11 @@ window.MemecoUtils = Object.freeze({
     }
 
     function renderSkeletonRows(count = 6) {
-      // 7 columns to match the watchlist table. Token column gets a
-      // two-line skeleton (logo + symbol + name); other columns alternate
-      // widths so the table doesn't look like a striped barcode.
-      const widths = ["wide", "medium", "wide", "medium", "wide", "short", "medium"];
-      const cells = widths.map((w) => `<td><div class="skeleton-block ${w}"></div></td>`).join("");
+      // 6 columns to match the watchlist table (Token / Signal / Opp /
+      // Liq / Wallet / Decision). Token column gets a two-line skeleton
+      // (logo + symbol + name); other columns alternate widths so the
+      // table doesn't look like a striped barcode.
+      const widths = ["wide", "medium", "wide", "medium", "wide", "short"];
       const tokenCell = `
         <td>
           <div class="skeleton-block medium"></div>
@@ -1116,7 +1127,7 @@ window.MemecoUtils = Object.freeze({
     function renderRows(rows) {
       tableCountEl.textContent = `${rows.length} TOKENS`;
       if (!rows.length) {
-        rowsEl.innerHTML = `<tr><td colspan="7"><div class="cb-stream-empty">No watchlist decisions match the active filters.</div></td></tr>`;
+        rowsEl.innerHTML = `<tr><td colspan="6"><div class="cb-stream-empty">No watchlist decisions match the active filters.</div></td></tr>`;
         return;
       }
       rowsEl.innerHTML = rows.map((row) => `
@@ -1127,10 +1138,6 @@ window.MemecoUtils = Object.freeze({
           <td data-label="Liquidity">${formatTableLiquidity(row)}</td>
           <td data-label="Wallet">${formatTableWallet(row)}</td>
           <td data-label="Decision">${formatTableDecision(row)}</td>
-          <td data-label="Updated">
-            <div class="table-cell"><div class="cell-sub">${escapeHtml(formatShortDate(row.created_at))}</div></div>
-            ${rowToolbar(row)}
-          </td>
         </tr>
       `).join("");
     }
@@ -1254,6 +1261,81 @@ window.MemecoUtils = Object.freeze({
       if (!btn) return;
       applyView(btn.dataset.view);
     });
+
+    // ---- Column visibility -------------------------------------------
+    //
+    // The gear button next to the view switcher opens a small dropdown
+    // with one checkbox per togglable pipeline column (Signal / Opp /
+    // Liquidity / Wallet). Token and Decision are always visible
+    // because they are the sticky anchors. Hidden state lives on the
+    // <section class="cb-table-card"> element via `data-hide-<name>="1"`
+    // attributes; the CSS selectors above hide the matching col + th +
+    // td. Preference persists in localStorage.
+    const COLUMN_PREFS_KEY = "memeco.dashboard.columns";
+    const COLUMN_KEYS = ["signal", "opportunity", "liquidity", "wallet"];
+    const streamCardEl = document.querySelector("#streamCard");
+    const colsButtonEl = document.querySelector("#colsButton");
+    const colsMenuEl = document.querySelector("#colsMenu");
+
+    function loadColumnPrefs() {
+      try {
+        const raw = localStorage.getItem(COLUMN_PREFS_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch (e) {
+        return {};
+      }
+    }
+    function saveColumnPrefs(prefs) {
+      try { localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(prefs)); }
+      catch (e) { /* ignore quota / private mode errors */ }
+    }
+    function applyColumnPrefs(prefs) {
+      COLUMN_KEYS.forEach((key) => {
+        const hidden = !!prefs[key];
+        if (hidden) streamCardEl.setAttribute(`data-hide-${key}`, "1");
+        else streamCardEl.removeAttribute(`data-hide-${key}`);
+        const checkbox = colsMenuEl?.querySelector(`input[data-col="${key}"]`);
+        if (checkbox) checkbox.checked = !hidden;
+      });
+    }
+    const columnPrefs = loadColumnPrefs();
+    applyColumnPrefs(columnPrefs);
+
+    if (colsButtonEl && colsMenuEl) {
+      const closeMenu = () => {
+        colsMenuEl.hidden = true;
+        colsButtonEl.setAttribute("aria-expanded", "false");
+      };
+      colsButtonEl.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const open = colsMenuEl.hidden;
+        colsMenuEl.hidden = !open;
+        colsButtonEl.setAttribute("aria-expanded", String(open));
+      });
+      colsMenuEl.addEventListener("click", (event) => event.stopPropagation());
+      colsMenuEl.addEventListener("change", (event) => {
+        const checkbox = event.target.closest("input[data-col]");
+        if (!checkbox) return;
+        const key = checkbox.dataset.col;
+        if (!COLUMN_KEYS.includes(key)) return;
+        const hidden = !checkbox.checked;
+        if (hidden) columnPrefs[key] = true;
+        else delete columnPrefs[key];
+        saveColumnPrefs(columnPrefs);
+        applyColumnPrefs(columnPrefs);
+      });
+      // Click anywhere else / ESC closes the menu.
+      document.addEventListener("click", (event) => {
+        if (colsMenuEl.hidden) return;
+        if (event.target.closest("#colsMenu, #colsButton")) return;
+        closeMenu();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !colsMenuEl.hidden) closeMenu();
+      });
+    }
 
     function renderDashboardRows(rows, allRows = rows) {
       // Always run diffs against the full unfiltered set so a status
@@ -2339,7 +2421,7 @@ window.MemecoUtils = Object.freeze({
         tickFreshness();
       } catch (error) {
         setFreshness("Update failed", "error");
-        rowsEl.innerHTML = `<tr><td class="empty" colspan="7">Dashboard request failed.</td></tr>`;
+        rowsEl.innerHTML = `<tr><td class="empty" colspan="6">Dashboard request failed.</td></tr>`;
       } finally {
         watchlistInFlight = false;
         scheduleNextRefresh();
