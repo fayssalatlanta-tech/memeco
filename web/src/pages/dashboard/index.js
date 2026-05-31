@@ -15,16 +15,8 @@ import "./dashboard.css";
 import * as memecoFormat from "../../lib/format.js";
 import * as memecoTime from "../../lib/time.js";
 import * as memecoDom from "../../lib/dom.js";
-// Side-effect import keeps BrandBar in the dependency graph so it lands
-// in the shared vendor chunk.
 import "../../components/BrandBar.js";
 
-// Compatibility shim — the legacy script reads helpers off
-// window.MemecoUtils. We populate it from the shared format/time/dom
-// libs before the body runs. Names below are deliberately not
-// declared as top-level identifiers so they can't collide with the
-// legacy body's `const { escapeHtml, ... } = window.MemecoUtils;`
-// destructuring.
 window.MemecoUtils = Object.freeze({
   escapeHtml:      memecoDom.escapeHtml,
   attr:            memecoDom.escapeHtml,
@@ -109,6 +101,65 @@ window.MemecoUtils = Object.freeze({
       if (status.includes("REJECT")) return "reject";
       if (status.includes("WAIT")) return "wait";
       return "";
+    }
+
+    // ---- Pipeline stop-stage detection ---------------------------------
+    //
+    // Memeco short-circuits the 9-stage pipeline as soon as a gate fails,
+    // so a token that flunked Market never has Wallet / Cluster / etc.
+    // run. The dashboard surfaces three different states so users don't
+    // assume "blank cell == bug":
+    //   actual data  → stage ran and returned values
+    //   "Unknown"    → stage ran but the upstream API gave no answer
+    //   "—"          → stage was skipped because the pipeline stopped
+    //                   earlier (`PIPELINE_STAGES`).
+    //
+    // The decision column also gets a "Stopped at: X" pill explaining
+    // where the pipeline halted, so the empty cells make sense at a
+    // glance.
+    const PIPELINE_STAGES = [
+      "Market",
+      "Contract",
+      "Liquidity",
+      "Wallet",
+      "Cluster",
+      "Manipulation",
+      "Intelligence",
+      "Final",
+    ];
+
+    function pipelineStopIndex(status) {
+      // Returns the index in PIPELINE_STAGES where the pipeline halted.
+      // Returns null if the pipeline ran end-to-end (any final pass
+      // status) or the status is unrecognised.
+      const value = String(status || "");
+      if (value === "WATCHLIST_PASS" || value === "WATCHLIST_PASS_HIGH_RISK"
+          || value === "WATCHLIST_REVIEW") return null;
+      if (value === "WATCHLIST_REJECT_MARKET") return 0;
+      if (value === "WATCHLIST_REJECT_CONTRACT_RISK") return 1;
+      if (value === "WATCHLIST_WAIT_LIQUIDITY"
+          || value === "WATCHLIST_REJECT_LIQUIDITY") return 2;
+      if (value === "WATCHLIST_WAIT_SECURITY_DATA"
+          || value === "WATCHLIST_REJECT_WALLET_RISK") return 3;
+      if (value === "WATCHLIST_REJECT_WALLET_INTELLIGENCE") return 6;
+      if (value === "WATCHLIST_REJECT_WALLET_MANIPULATION") return 5;
+      return null;
+    }
+
+    function pipelineStopName(status) {
+      const idx = pipelineStopIndex(status);
+      return idx === null ? null : PIPELINE_STAGES[idx];
+    }
+
+    function stageWasSkipped(status, stageIndex) {
+      // True when this row's pipeline stopped strictly before stageIndex,
+      // so we should render "—" instead of "Pending"/"Unknown".
+      const stopIdx = pipelineStopIndex(status);
+      return stopIdx !== null && stageIndex > stopIdx;
+    }
+
+    function notRunLabel(title = "Stage skipped — earlier gate halted pipeline") {
+      return `<span class="risk-label not-run" title="${escapeHtml(title)}">—</span>`;
     }
 
     function shortStatus(status) {
@@ -220,6 +271,8 @@ window.MemecoUtils = Object.freeze({
       } else if (status === "CONTRACT_UNKNOWN") {
         label = "Unknown";
         className = "warning";
+      } else if (stageWasSkipped(row.final_watchlist_status, 1)) {
+        return notRunLabel();
       }
       const title = rawScore === "" || rawScore === null ? "" : `Raw RugCheck score: ${Number(rawScore).toLocaleString()}`;
       return `<span class="risk-label ${className}" title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
@@ -232,6 +285,7 @@ window.MemecoUtils = Object.freeze({
       if (status === "WALLET_WARNING") return `<span class="risk-label warning" title="Top 10 holders: ${top10}">Warning</span>`;
       if (status === "WALLET_PASS") return `<span class="risk-label low" title="Top 10 holders: ${top10}">Pass</span>`;
       if (status === "WALLET_UNKNOWN") return `<span class="risk-label warning">Unknown</span>`;
+      if (stageWasSkipped(row.final_watchlist_status, 3)) return notRunLabel();
       return `<span class="risk-label">Pending</span>`;
     }
 
@@ -242,6 +296,14 @@ window.MemecoUtils = Object.freeze({
       const reason = details.liquidity_trap_reason || "";
       const lpLock = details.lp_lock || {};
       const warnings = Array.isArray(details.liquidity_trap_warnings) ? details.liquidity_trap_warnings : [];
+      // Liquidity trap is computed during the Liquidity stage. Render a
+      // dash when the pipeline halted before that point and we have no
+      // score to show.
+      if (!details.liquidity_trap_score
+          && status === "LIQUIDITY_TRAP_UNKNOWN"
+          && stageWasSkipped(row.final_watchlist_status, 2)) {
+        return notRunLabel();
+      }
       let className = "low";
       let level = "LOW";
       if (status.includes("CRITICAL")) {
@@ -271,6 +333,7 @@ window.MemecoUtils = Object.freeze({
       if (status === "CLUSTER_WARNING") return `<span class="risk-label warning" title="Largest shared funder cluster: ${size} holders">Warning</span>`;
       if (status === "CLUSTER_PASS") return `<span class="risk-label low" title="No shared funding-source cluster detected">Pass</span>`;
       if (status === "CLUSTER_UNKNOWN") return `<span class="risk-label warning">Unknown</span>`;
+      if (stageWasSkipped(row.final_watchlist_status, 4)) return notRunLabel();
       return `<span class="risk-label">Pending</span>`;
     }
 
@@ -296,6 +359,7 @@ window.MemecoUtils = Object.freeze({
         return `<span class="manipulation-cell low" title="${escapeHtml(title)}">Pass<span class="manipulation-detail">No strong pattern</span></span>`;
       }
       if (status === "MANIPULATION_UNKNOWN") return `<span class="risk-label warning" title="${escapeHtml(title)}">Unknown</span>`;
+      if (stageWasSkipped(row.final_watchlist_status, 5)) return notRunLabel();
       return `<span class="risk-label">Pending</span>`;
     }
 
@@ -310,12 +374,16 @@ window.MemecoUtils = Object.freeze({
         ["Dev", summary.dev_related || 0],
         ["Bot", summary.bots || 0],
       ].filter((item) => Number(item[1]) > 0);
-      if (!items.length) return `<span class="risk-label">None</span>`;
-      return `
-        <div class="intel-list" title="Average wallet score: ${escapeHtml(summary.avg_wallet_score ?? "n/a")}">
-          ${items.map(([label, count]) => `<span class="intel-pill">${escapeHtml(label)} ${escapeHtml(count)}</span>`).join("")}
-        </div>
-      `;
+      if (items.length) {
+        return `
+          <div class="intel-list" title="Average wallet score: ${escapeHtml(summary.avg_wallet_score ?? "n/a")}">
+            ${items.map(([label, count]) => `<span class="intel-pill">${escapeHtml(label)} ${escapeHtml(count)}</span>`).join("")}
+          </div>
+        `;
+      }
+      // No signals — distinguish "stage skipped" from "stage ran clean".
+      if (stageWasSkipped(row.final_watchlist_status, 6)) return notRunLabel();
+      return `<span class="risk-label">None</span>`;
     }
 
     function formatDevAudit(row) {
@@ -341,6 +409,10 @@ window.MemecoUtils = Object.freeze({
       } else if (status === "DEV_NO_BALANCE") {
         className = "high";
         label = "No balance";
+      } else if (stageWasSkipped(row.final_watchlist_status, 5)) {
+        // Dev audit only runs after Manipulation; render dash when the
+        // pipeline halted earlier instead of leaking the raw "Unknown".
+        return notRunLabel();
       }
       const title = [
         reason,
@@ -357,6 +429,12 @@ window.MemecoUtils = Object.freeze({
       const score = asNumber(details.insider_probability_score);
       const level = String(details.insider_probability_level || "LOW");
       const reasons = Array.isArray(details.insider_probability_reasons) ? details.insider_probability_reasons : [];
+      // Insider probability is computed from intel + manipulation; if we
+      // never even got there, render a clean dash.
+      if (!details.insider_probability_score
+          && stageWasSkipped(row.final_watchlist_status, 6)) {
+        return notRunLabel();
+      }
       const className = level.toLowerCase();
       const title = reasons.length ? reasons.join(" | ") : "No strong insider signal";
       return `<span class="probability-cell ${className}" title="${escapeHtml(title)}">${score}/100<span class="probability-detail">${escapeHtml(level)}</span></span>`;
@@ -418,6 +496,18 @@ window.MemecoUtils = Object.freeze({
       return `<span class="mini-pill ${tone}" ${title ? `title="${escapeHtml(title)}"` : ""}>${escapeHtml(text)}</span>`;
     }
 
+    // Pill helper for table cells that knows about pipeline stop stages.
+    // Renders the regular `miniPill` when we have data, or a muted "—"
+    // pill labelled with the stage name when the row's pipeline stopped
+    // before that stage ran. This is what makes "REJECT_MARKET" rows
+    // stop showing "Pending Pending Pending" cells past the Market gate.
+    function stagePill(row, stageIdx, label, value, tone, title) {
+      if (!value && stageWasSkipped(row.final_watchlist_status, stageIdx)) {
+        return `<span class="mini-pill not-run" title="Stage skipped — pipeline halted earlier">${escapeHtml(label)} —</span>`;
+      }
+      return miniPill(label, value, tone, title);
+    }
+
     function marketStat(label, value, title = "") {
       return `
         <div class="market-stat" ${title ? `title="${escapeHtml(title)}"` : ""}>
@@ -467,13 +557,18 @@ window.MemecoUtils = Object.freeze({
 
     function formatTableSafety(row) {
       const details = rowDetails(row);
+      const insider = asNumber(details.insider_probability_score);
+      const score10 = normalizedRiskScore(row);
+      const insiderText = insider > 0 || details.insider_probability_score
+        ? `${insider}/100`
+        : "";
       return `
         <div class="table-cell">
           <div class="signal-pills">
-            ${miniPill("Contract", shortStatus(row.contract_risk_status), statusTone(row.contract_risk_status))}
-            ${miniPill("Insider", `${insiderScore(row)}/100`, statusTone(details.insider_probability_level || "LOW"))}
+            ${stagePill(row, 1, "Contract", shortStatus(row.contract_risk_status), statusTone(row.contract_risk_status))}
+            ${stagePill(row, 6, "Insider",  insiderText, statusTone(details.insider_probability_level || "LOW"))}
           </div>
-          <div class="cell-sub">Risk ${normalizedRiskScore(row) || "N/A"}/10</div>
+          <div class="cell-sub">Risk ${score10 || (stageWasSkipped(row.final_watchlist_status, 1) ? "—" : "N/A")}/10</div>
         </div>
       `;
     }
@@ -484,11 +579,14 @@ window.MemecoUtils = Object.freeze({
       const lpLabel = lpLock.lp_locked_pct !== undefined && lpLock.lp_locked_pct !== null
         ? `${lpLock.lp_locked_pct}% LP`
         : String(lpLock.lp_lock_status || "LP unknown").replace("LP_", "").replaceAll("_", " ");
+      const trapValue = details.liquidity_trap_score
+        ? `${liquidityTrapScore(row)}/100`
+        : "";
       return `
         <div class="table-cell">
           <div class="signal-pills">
-            ${miniPill("Trap", `${liquidityTrapScore(row)}/100`, statusTone(details.liquidity_trap_status))}
-            ${miniPill("", lpLabel, statusTone(lpLock.lp_lock_status), lpLock.lp_reason || "")}
+            ${stagePill(row, 2, "Trap", trapValue, statusTone(details.liquidity_trap_status))}
+            ${stagePill(row, 2, "", lpLock.lp_lock_status ? lpLabel : "", statusTone(lpLock.lp_lock_status), lpLock.lp_reason || "")}
           </div>
           <div class="market-snapshot compact">
             ${marketStat("Liq", formatLiquidityValue(row, row.liquidity_usd || details.liquidity_usd))}
@@ -505,17 +603,22 @@ window.MemecoUtils = Object.freeze({
     function formatTableWallet(row) {
       const details = rowDetails(row);
       const summary = parseDetails(row.intelligence_summary) || {};
-      const devStatus = details.dev_audit_status || "DEV_UNKNOWN";
-      const devFlowStatus = details.dev_flow_status || "DEV_FLOW_UNKNOWN";
-      const manipScore = row.manipulation_score ?? "N/A";
+      const devStatus = details.dev_audit_status || "";
+      const devFlowStatus = details.dev_flow_status || "";
+      const manipValue = row.manipulation_score !== null && row.manipulation_score !== undefined
+        ? `${row.manipulation_score}/10`
+        : "";
+      const shadowValue = details.shadow_dev_score !== null && details.shadow_dev_score !== undefined
+        ? `${asNumber(details.shadow_dev_score)}/100`
+        : "";
       return `
         <div class="table-cell">
           <div class="signal-pills">
-            ${miniPill("Wallet", shortStatus(row.wallet_status), statusTone(row.wallet_status), `Top10: ${formatPercent(row.top10_holders_percent)}`)}
-            ${miniPill("Cluster", shortStatus(row.cluster_status), statusTone(row.cluster_status))}
-            ${miniPill("Manip", `${manipScore}/10`, statusTone(row.manipulation_status), row.manipulation_reason || "")}
-            ${miniPill("Dev", shortStatus(devStatus), statusTone(devStatus), details.dev_audit_reason || "")}
-            ${miniPill("Shadow", `${asNumber(details.shadow_dev_score)}/100`, statusTone(devFlowStatus), details.dev_flow_reason || "")}
+            ${stagePill(row, 3, "Wallet",  shortStatus(row.wallet_status),     statusTone(row.wallet_status), `Top10: ${formatPercent(row.top10_holders_percent)}`)}
+            ${stagePill(row, 4, "Cluster", shortStatus(row.cluster_status),    statusTone(row.cluster_status))}
+            ${stagePill(row, 5, "Manip",   manipValue,                          statusTone(row.manipulation_status), row.manipulation_reason || "")}
+            ${stagePill(row, 5, "Dev",     devStatus ? shortStatus(devStatus) : "",   statusTone(devStatus), details.dev_audit_reason || "")}
+            ${stagePill(row, 5, "Shadow",  shadowValue,                         statusTone(devFlowStatus), details.dev_flow_reason || "")}
           </div>
           <div class="market-snapshot compact">
             ${marketStat("Early", asNumber(summary.early_buyers))}
@@ -530,12 +633,17 @@ window.MemecoUtils = Object.freeze({
     }
 
     function formatTableDecision(row) {
+      const stop = pipelineStopName(row.final_watchlist_status);
+      const stopBadge = stop
+        ? `<span class="stage-stop" title="Pipeline halted at ${escapeHtml(stop)} — downstream stages were skipped on purpose">⛔ Stopped at ${escapeHtml(stop)}</span>`
+        : "";
       return `
         <div class="table-cell">
           <div class="cell-primary">
             <span class="badge ${badgeClass(row.final_watchlist_status)}">${escapeHtml(finalDecisionLabel(row.final_watchlist_status))}</span>
             ${decisionFlipBadge(row)}
           </div>
+          ${stopBadge}
           <div class="cell-sub two-lines">${escapeHtml(row.final_watchlist_reason || "No final reason")}</div>
         </div>
       `;

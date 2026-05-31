@@ -1847,6 +1847,16 @@
       color: #ff8800;
     }
 
+    /* Not-run state for table cells: pipeline halted before this stage
+       executed. Muted/dashed border so it doesn't compete with the
+       coloured danger/warning/low pills. */
+    .mini-pill.not-run {
+      border: 1px dashed rgba(255, 255, 255, .18);
+      background: rgba(255, 255, 255, .03);
+      color: rgba(255, 255, 255, .42);
+      cursor: help;
+    }
+
     .mini-kpi {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1954,6 +1964,36 @@
 
     .risk-label.low {
       color: #2fe28a;
+    }
+
+    /* "Not run" — pipeline halted before this stage executed. Visually
+       quieter than Pending/Unknown so users don't read it as a problem;
+       it's just "skipped on purpose". */
+    .risk-label.not-run {
+      color: rgba(255, 255, 255, .32);
+      font-weight: 700;
+      letter-spacing: .12em;
+      cursor: help;
+    }
+
+    /* "Stopped at: <stage>" pill in the Decision column. Calls out
+       where the pipeline halted so the empty downstream cells make
+       sense at a glance. */
+    .stage-stop {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 6px;
+      padding: 2px 8px;
+      border: 1px solid rgba(255, 255, 255, .18);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .04);
+      color: rgba(255, 255, 255, .72);
+      font: 800 10px ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      cursor: help;
     }
 
     .ad-pill,
