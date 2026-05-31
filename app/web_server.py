@@ -1488,7 +1488,7 @@ async def page_dashboard() -> Response:
 
 @app.get("/token", include_in_schema=False)
 async def page_token_detail() -> Response:
-    return _static("token_detail.html")
+    return _vite_or_static("token", "token_detail.html")
 
 
 @app.get("/whale-radar", include_in_schema=False)

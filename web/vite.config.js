@@ -35,6 +35,7 @@ export default defineConfig({
         // to the Vite build.
         system: resolve(__dirname, "src/pages/system/index.html"),
         wallet: resolve(__dirname, "src/pages/wallet/index.html"),
+        token:  resolve(__dirname, "src/pages/token/index.html"),
       },
     },
   },
