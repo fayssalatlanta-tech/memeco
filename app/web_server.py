@@ -1493,7 +1493,7 @@ async def page_token_detail() -> Response:
 
 @app.get("/whale-radar", include_in_schema=False)
 async def page_whale_radar() -> Response:
-    return _static("whale_radar.html")
+    return _vite_or_static("whale", "whale_radar.html")
 
 
 @app.get("/wallet", include_in_schema=False)

@@ -36,6 +36,7 @@ export default defineConfig({
         system: resolve(__dirname, "src/pages/system/index.html"),
         wallet: resolve(__dirname, "src/pages/wallet/index.html"),
         token:  resolve(__dirname, "src/pages/token/index.html"),
+        whale:  resolve(__dirname, "src/pages/whale/index.html"),
       },
     },
   },

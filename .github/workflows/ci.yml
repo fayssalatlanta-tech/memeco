@@ -151,6 +151,8 @@ jobs:
           test -f dist/pages/system/index.html
           test -f dist/pages/wallet/index.html
           test -f dist/pages/token/index.html
+          test -f dist/pages/whale/index.html
           ls -1 dist/assets | grep -E '^system-.*\.js$'
           ls -1 dist/assets | grep -E '^wallet-.*\.(js|css)$'
           ls -1 dist/assets | grep -E '^token-.*\.(js|css)$'
+          ls -1 dist/assets | grep -E '^whale-.*\.(js|css)$'
