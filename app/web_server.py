@@ -1483,7 +1483,7 @@ _STATIC_ASSET_CONTENT_TYPES = {
 
 @app.get("/", include_in_schema=False)
 async def page_dashboard() -> Response:
-    return _static("dashboard.html")
+    return _vite_or_static("dashboard", "dashboard.html")
 
 
 @app.get("/token", include_in_schema=False)

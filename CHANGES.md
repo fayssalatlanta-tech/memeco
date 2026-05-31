@@ -7,6 +7,88 @@ the project.
 
 ---
 
+## 2026-05-31 — Vite SPA migration complete: dashboard ported, all 5 pages on Vite
+
+### Why
+
+The system page reference, the wallet/token/whale page rewrites, and now the
+dashboard land on the Vite build. The five-page migration is done; the
+legacy `app/static/*.html` files stay on disk as a safety-net fallback that
+`_vite_or_static` reaches for if the Vite build is missing.
+
+### What changed (this commit — dashboard)
+
+The dashboard is the most complex page (auto-refresh, SSE, multi-select
+filters, sort, three view modes, decision drawer, sparklines, starred-token
+notifications, keyboard nav, density toggle, whale ticker). To guarantee
+zero behavior regressions, the migration was deliberately conservative:
+
+* `web/src/pages/dashboard/dashboard.css` — entire `<style>` block from
+  the legacy `app/static/dashboard.html` lifted verbatim.
+* `web/src/pages/dashboard/index.html` — the legacy `<body>` markup with
+  the inline `<script>` removed.
+* `web/src/pages/dashboard/index.js` — the legacy script body, prefixed
+  with a small Vite prelude that imports the shared cyberpunk styles +
+  the page-specific css and builds a `window.MemecoUtils` shim from
+  `format.js` / `time.js` / `dom.js`. The legacy code's
+  `const { escapeHtml, ... } = window.MemecoUtils;` destructuring keeps
+  working without modification.
+* `vite.config.js` — `dashboard` entry registered.
+* `app/web_server.py` — `/` flipped to `_vite_or_static("dashboard",
+  "dashboard.html")`.
+* CI: `web-build` job now verifies `dashboard-*.{js,css}` chunks exist
+  alongside the four already-verified pages.
+
+### Why this approach
+
+Reimplementing 2400+ lines of mature JS across the SSE handler, decision
+drawer, sort/filter/view machinery, kbd shortcuts, notifications, and
+whale-ticker poll would have invited subtle regressions in features the
+user relies on every day. Lifting verbatim and shimming `MemecoUtils` is
+boring and safe — exactly the trade we want for the highest-traffic page.
+A follow-up cleanup can refactor the lifted body into shared components
+incrementally, with the rest of the suite as a model.
+
+### What's covered across all five pages now
+
+* `/`            — COMMAND BRIDGE / SIGNAL FLOOR (this commit)
+* `/whale-radar` — RADAR CONSOLE
+* `/token`       — CASE FILE / DECISION DOSSIER
+* `/wallet`      — WALLET DOSSIER + tier emblem
+* `/system`      — OPS DECK
+
+### Verified
+
+* All 72 unit tests still pass.
+* TestClient smoke for all five pages: every `/static/dist/assets/...` URL
+  the page references resolves with the right content type, including the
+  shared `BrandBar-*`, `format-*`, `api-*`, `dom-*` chunks.
+* `npm run build` clean: 27 modules, 1.15s. Dashboard chunk is ~45 KB JS +
+  ~52 KB CSS plus the ~7 KB shared bundles.
+* `node --check` accepts the bundled dashboard module.
+
+### Files touched
+
+* `web/src/pages/dashboard/{index.html, index.js, dashboard.css}` (new)
+* `web/vite.config.js`
+* `app/web_server.py`
+* `.github/workflows/ci.yml`
+* `DEVELOPMENT_GUIDE.md` — Vite section rewritten with the final layout
+  and the lift-verbatim approach used for the dashboard.
+
+### Next steps for whoever picks this up
+
+* Watch the dashboard for a few days in production. If a regression
+  appears, flipping `/` back to `_static("dashboard.html")` is a one-line
+  rollback.
+* When confident, retire the legacy `app/static/*.html` files plus the
+  `_vite_or_static` fallback in one commit.
+* Refactor the lifted dashboard body into shared components (BrandBar
+  reuse, decision-drawer module, signal-chain component, sparkline
+  component) incrementally.
+
+---
+
 ## 2026-05-31 — Vite SPA foundation: system page migrated, others on deck
 
 ### Why

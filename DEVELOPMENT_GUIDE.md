@@ -275,14 +275,13 @@ Also include:
 
 ## Known Future Improvements
 
-### Vite SPA refactor (in progress — system page migrated)
+### Vite SPA refactor (complete — all five pages migrated)
 
-The four interactive pages (`dashboard.html`, `whale_radar.html`,
-`wallet_detail.html`, `token_detail.html`) are large monolithic files
-(~70-160KB each) with a lot of duplicated structure: brand bar, KPI HUD
-tiles, panels, tables, signal-chain barcodes, decision-tree drawer,
-empty states. The migration to a Vite-built SPA is now underway, with
-the **system page** done as the reference implementation.
+The four interactive pages plus the system page now ship from a Vite
+build. The legacy monolithic HTML files in `app/static/` remain on
+disk as a safety net (`_vite_or_static` falls back to them if a Vite
+build is missing) and can be retired once the Vite build is verified
+in production for a few releases.
 
 #### Layout
 
@@ -296,23 +295,33 @@ web/
 │   │   ├── tokens.css      (cyberpunk design tokens)
 │   │   └── cyberpunk.css   (shared utility classes & layout primitives)
 │   ├── lib/
-│   │   ├── api.js          (typed fetch wrappers for /api/*)
+│   │   ├── api.js          (fetch wrappers for /api/*)
 │   │   ├── time.js         (timeAgo, timeAgoShort, formatDate)
-│   │   └── dom.js          (h`` tagged template, raw(), mount(), escapeHtml)
+│   │   ├── dom.js          (h`` tagged template, raw(), mount(), escapeHtml)
+│   │   └── format.js       (numberOrNull, formatNumber/Money/Percent/Sol,
+│   │                        formatSignedPercent, shortAddress, parseDetails)
 │   ├── components/
-│   │   ├── BrandBar.js     (page header with nav + right slot)
+│   │   ├── BrandBar.js     (sticky page header — accepts `extraActive`
+│   │   │                    for deep-link pages like wallet/token)
+│   │   ├── TierEmblem.js   (tierForPnl + inline SVG art for the wallet page)
 │   │   ├── OpsHud.js       (KPI HUD strip)
 │   │   ├── OpsTable.js     (cyberpunk-styled table)
 │   │   ├── ApiPill.js      (live "Updated 5s ago" pulse)
 │   │   └── ErrorCard.js    (red-edge failure card)
 │   └── pages/
-│       └── system/
-│           ├── index.html  (mount point + module entry)
-│           └── index.js    (page-specific code)
+│       ├── system/         (Ops Deck — reference migration)
+│       ├── wallet/         (WALLET DOSSIER + tier emblem)
+│       ├── token/          (CASE FILE / DECISION DOSSIER)
+│       ├── whale/          (RADAR CONSOLE)
+│       └── dashboard/      (COMMAND BRIDGE / SIGNAL FLOOR)
 └── dist/                   (build output — gitignored)
     ├── pages/<slug>/index.html
     └── assets/<entry>-<hash>.{js,css,map}
 ```
+
+Vite automatically extracts shared code into chunks (`BrandBar-*.js`,
+`format-*.js`, `api-*.js`, `dom-*.js`), so the five pages share a
+single ~7 KB vendor bundle instead of duplicating helpers.
 
 #### How FastAPI integrates
 
@@ -320,17 +329,32 @@ web/
 
 1. `_vite_or_static(page_slug, legacy_filename)` — the page route
    helper. If `web/dist/pages/<slug>/index.html` exists it is served;
-   otherwise the legacy `app/static/<filename>` is served. So a page
-   that hasn't been migrated yet keeps working untouched.
+   otherwise the legacy `app/static/<filename>` is served. So if the
+   Vite build is missing for any reason (e.g. a fresh checkout that
+   hasn't run `npm run build`), the page keeps working from the
+   legacy file.
 2. `/static/dist/{path}` route — serves any file under `web/dist/`
    with the same content-type whitelist as `/static/{path}`. That is
    what resolves the hashed `<script src="/static/dist/assets/…">`
    tags emitted by Vite.
 
-The `/system` route already calls `_vite_or_static("system", "system.html")`.
-The other four routes (`/`, `/token`, `/whale-radar`, `/wallet`) still
-serve the legacy HTML and will be flipped one at a time as each page
-is migrated.
+All five page routes (`/`, `/token`, `/whale-radar`, `/wallet`,
+`/system`) call `_vite_or_static`.
+
+#### Migration approach for the dashboard
+
+The other four pages were rewritten cleanly using the shared helpers
+and components. The dashboard is the most complex page (auto-refresh,
+SSE, decision drawer, multi-select chips, sort, tape/cockpit views,
+starred-token notifications, keyboard nav, density toggle, sparklines)
+so its migration was deliberately conservative: the entire `<style>`
+block and the entire `<script>` body from the legacy file were lifted
+verbatim into `web/src/pages/dashboard/{dashboard.css, index.js}`. A
+small prelude in `index.js` builds a `window.MemecoUtils` shim from
+the shared `format.js`/`time.js`/`dom.js` modules so the lifted code
+keeps working without changes. This guarantees pixel-for-pixel and
+behavior-for-behavior parity with the legacy page. A future cleanup
+can refactor the lifted body into shared components incrementally.
 
 #### Build / dev workflow
 
@@ -346,29 +370,15 @@ npm run dev
 ```
 
 The `web-build` job in `.github/workflows/ci.yml` runs `npm ci &&
-npm run build` and verifies the system entry chunks exist. Future
-migrations only need to add their entry to `vite.config.js`'s `input`
-map and (optionally) extend the verification step.
+npm run build` and verifies every page's entry chunks exist.
 
-#### Migrating the next page (recipe)
+#### Retiring the legacy pages (future)
 
-1. Create `web/src/pages/<slug>/index.html` (mount point + `<script
-   type="module" src="./index.js">`).
-2. Create `web/src/pages/<slug>/index.js`. Import shared styles, use
-   shared components for everything that already exists, write
-   page-specific render logic. Use `api.<endpoint>()` from
-   `lib/api.js` to fetch data.
-3. Add the entry to `vite.config.js`'s `rollupOptions.input` map.
-4. Flip the FastAPI route: change `_static("xxx.html")` to
-   `_vite_or_static("<slug>", "xxx.html")`.
-5. `npm run build` — confirm the page renders correctly at the
-   matching URL.
-6. Once the migration is verified, delete `app/static/<slug>.html`
-   in a follow-up commit (the legacy fallback can be retired).
-
-The legacy `app/static/*.html` files stay in tree until each page is
-fully migrated and a stable Vite version exists, which keeps the
-project bisectable through the transition.
+Once the Vite versions have been in production for long enough that
+a regression would have surfaced, the legacy `app/static/*.html`
+files plus the `_vite_or_static` fallback can be removed in one
+commit. Until then, both paths are maintained and a quick rollback
+is one route flip away.
 
 ### Other deferred items
 

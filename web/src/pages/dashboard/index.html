@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Memeco · COMMAND BRIDGE</title>
+</head>
+<body>
+<div class="cb-shell">
+
+    <!-- Top brand strip -->
+    <header class="cb-brand-bar">
+      <div class="cb-brand">
+        <div class="cb-brand-mark">▲</div>
+        <div class="cb-brand-text">
+          <div class="cb-brand-name">MEMECO</div>
+          <div class="cb-brand-tag">QUANT INTELLIGENCE</div>
+        </div>
+      </div>
+      <nav class="cb-nav" aria-label="Workspace">
+        <a class="cb-nav-link is-active" href="/">DASHBOARD</a>
+        <a class="cb-nav-link" href="/whale-radar">WHALE RADAR</a>
+        <a class="cb-nav-link" href="/system">SYSTEM</a>
+        <span class="cb-nav-sep" aria-hidden="true"></span>
+        <span class="cb-nav-stat"><em id="sideOpportunityCount">0</em> OPP</span>
+        <span class="cb-nav-stat danger"><em id="sideRiskCount">0</em> RISK</span>
+      </nav>
+      <div class="cb-brand-right">
+        <div class="status-note" id="statusNote" aria-live="polite">
+          <span class="live-dot" id="liveDot" title="Live updates"></span>
+          <span class="freshness" id="freshness">Loading...</span>
+        </div>
+        <button
+          id="kbdHelpButton"
+          type="button"
+          class="cb-icon-btn"
+          title="Keyboard shortcuts (?)"
+          aria-label="Show keyboard shortcuts"
+        >?</button>
+      </div>
+    </header>
+
+    <!-- Whale ticker (last 3 high-signal events) -->
+    <section class="cb-whale-ticker" id="whaleTicker" hidden>
+      <div class="cb-whale-eyebrow"><i class="dot pulse"></i>WHALE INTERCEPT</div>
+      <div class="cb-whale-rail" id="whaleTickerRail"></div>
+      <a class="cb-whale-link" href="/whale-radar">RADAR →</a>
+    </section>
+
+    <!-- Command rail: search + global actions -->
+    <section class="cb-command-rail">
+      <form class="cb-search" id="manualAnalyzeForm">
+        <span class="cb-search-prompt" aria-hidden="true">›</span>
+        <input
+          id="manualTokenInput"
+          type="text"
+          placeholder="ANALYZE › paste Solana mint address"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Solana token address"
+        >
+        <button id="manualAnalyzeButton" type="submit" class="cb-cta">EXECUTE</button>
+      </form>
+      <div class="cb-rail-actions">
+        <button id="scanButton" type="button" class="cb-cta-secondary">RUN SCAN</button>
+        <button id="refreshButton" type="button" class="cb-icon-btn" title="Refresh" aria-label="Refresh">⟳</button>
+        <button
+          id="sidebarToggle"
+          type="button"
+          class="cb-icon-btn"
+          aria-label="Toggle filters"
+          aria-expanded="true"
+          title="Toggle filters"
+        >☰</button>
+      </div>
+    </section>
+
+    <!-- HUD strip: KPI tiles -->
+    <section class="cb-hud" id="summary"></section>
+
+    <!-- Scan ticker (full-width, horizontal) -->
+    <section class="cb-ticker" id="scanTicker">
+      <div class="cb-ticker-head">
+        <div>
+          <div class="cb-ticker-eyebrow" id="scanNote">Scan status: idle</div>
+          <div class="cb-ticker-time" id="scanTime"></div>
+        </div>
+        <div class="cb-load" id="systemLoadMeter">
+          <div class="cb-load-track">
+            <div class="cb-load-fill" id="loadGauge" style="--load-deg: 0deg;"></div>
+            <span class="cb-load-needle" id="loadValue">0%</span>
+          </div>
+          <div class="cb-load-text">
+            <div class="cb-load-status" id="loadStatus">Light</div>
+            <div class="cb-load-hint" id="loadHint">No active scan.</div>
+          </div>
+        </div>
+      </div>
+      <div class="cb-ticker-rail" id="scanSteps"></div>
+      <div class="cb-ticker-error scan-error" id="scanError"></div>
+    </section>
+
+    <!-- Filter bar (horizontal chip rail) -->
+    <section class="cb-filter-bar">
+      <div class="cb-filter-label">FILTER</div>
+      <div
+        class="filter-chip-group"
+        id="statusFilter"
+        role="group"
+        aria-label="Filter watchlist by decision status"
+      >
+        <button type="button" class="filter-chip" data-status="" aria-pressed="true">ALL</button>
+        <button type="button" class="filter-chip starred" data-filter="starred" aria-pressed="false" title="Show only locally-starred tokens">★ STARRED</button>
+        <button type="button" class="filter-chip pass" data-status="WATCHLIST_PASS" aria-pressed="false">PASS</button>
+        <button type="button" class="filter-chip pass" data-status="WATCHLIST_PASS_HIGH_RISK" aria-pressed="false">PASS · HIGH RISK</button>
+        <button type="button" class="filter-chip review" data-status="WATCHLIST_REVIEW" aria-pressed="false">REVIEW</button>
+        <button type="button" class="filter-chip wait" data-status="WATCHLIST_WAIT_SECURITY_DATA" aria-pressed="false">WAIT · SECURITY</button>
+        <button type="button" class="filter-chip wait" data-status="WATCHLIST_WAIT_LIQUIDITY" aria-pressed="false">WAIT · LIQUIDITY</button>
+        <button type="button" class="filter-chip reject" data-status="WATCHLIST_REJECT_MARKET" aria-pressed="false">REJECT · MARKET</button>
+        <button type="button" class="filter-chip reject" data-status="WATCHLIST_REJECT_CONTRACT_RISK" aria-pressed="false">REJECT · CONTRACT</button>
+        <button type="button" class="filter-chip reject" data-status="WATCHLIST_REJECT_LIQUIDITY" aria-pressed="false">REJECT · LIQUIDITY</button>
+      </div>
+      <div class="cb-filter-tools">
+        <div class="cb-filter-stats" id="sideStats"></div>
+        <button
+          type="button"
+          id="densityToggle"
+          class="cb-icon-btn density-toggle"
+          aria-pressed="false"
+          title="Toggle compact / comfy density"
+        >COMPACT</button>
+      </div>
+    </section>
+
+    <!-- Hero opportunity (one big featured card) -->
+    <section class="cb-hero hero-card" id="heroOpportunity"></section>
+
+    <!-- Opportunity grid: 3 picks side-by-side -->
+    <section class="cb-opportunity">
+      <header class="cb-section-head">
+        <h2>OPPORTUNITY GRID</h2>
+        <div class="cb-section-note">Top 3 — ranked before rejected risk cases</div>
+      </header>
+      <div class="opportunity-grid" id="opportunityGrid"></div>
+    </section>
+
+    <!-- The big table: Decision Stream -->
+    <section class="cb-table-card table-card" id="streamCard">
+      <header class="table-head cb-section-head cb-stream-head">
+        <div class="cb-stream-title">
+          <h2>SIGNAL FLOOR</h2>
+          <div class="cb-stream-meta">
+            <span class="cb-stream-stat" id="streamPassCount" data-tone="pass">— PASS</span>
+            <span class="cb-stream-stat" id="streamWaitCount" data-tone="wait">— WAIT</span>
+            <span class="cb-stream-stat" id="streamRejectCount" data-tone="reject">— REJECT</span>
+            <span class="cb-stream-sep" aria-hidden="true"></span>
+            <span class="cb-stream-stat" id="streamFreshest"><b>—</b> FRESHEST</span>
+          </div>
+        </div>
+        <div class="table-tools cb-stream-tools">
+          <div class="cb-view-switch" role="tablist" aria-label="Switch view">
+            <button type="button" class="cb-view-btn is-active" data-view="table" role="tab" aria-selected="true" title="Dense table view">▦ TABLE</button>
+            <button type="button" class="cb-view-btn" data-view="tape" role="tab" aria-selected="false" title="Chronological tape view">≡ TAPE</button>
+            <button type="button" class="cb-view-btn" data-view="cockpit" role="tab" aria-selected="false" title="Detailed card grid">▣ COCKPIT</button>
+          </div>
+          <div class="table-note cb-table-count" id="tableCount">0 TOKENS</div>
+        </div>
+      </header>
+      <div class="cb-stream-legend" aria-hidden="true">
+        <span>SIGNAL CHAIN →</span>
+        <span class="legend-key"><i class="bar"></i>MARKET</span>
+        <span class="legend-key"><i class="bar"></i>CONTRACT</span>
+        <span class="legend-key"><i class="bar"></i>LIQ</span>
+        <span class="legend-key"><i class="bar"></i>TRAP</span>
+        <span class="legend-key"><i class="bar"></i>WALLET</span>
+        <span class="legend-key"><i class="bar"></i>CLUSTER</span>
+        <span class="legend-key"><i class="bar"></i>MANIP</span>
+        <span class="legend-key"><i class="bar"></i>DEV</span>
+        <span class="legend-key"><i class="bar"></i>INSIDER</span>
+      </div>
+      <div class="table-wrap" data-view="table">
+        <table>
+          <colgroup>
+            <col class="token-col">
+            <col class="signal-col">
+            <col class="opportunity-col">
+            <col class="liquidity-col">
+            <col class="wallet-col">
+            <col class="decision-col">
+            <col class="updated-col">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="sortable" data-sort-key="symbol">Token<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th>Signal Chain</th>
+              <th class="sortable" data-sort-key="opportunity">Opportunity<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="liquidity">Liquidity<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="manipulation">Wallet<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="decision">Decision<span class="sort-arrow" aria-hidden="true">↕</span></th>
+              <th class="sortable" data-sort-key="updated">Updated<span class="sort-arrow" aria-hidden="true">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="watchlistRows"></tbody>
+        </table>
+      </div>
+      <div class="cb-tape" id="streamTape" hidden></div>
+      <div class="cb-cockpit" id="streamCockpit" hidden></div>
+    </section>
+
+  </div>
+
+  <aside
+    id="decisionDrawer"
+    class="decision-drawer"
+    aria-hidden="true"
+    aria-labelledby="drawerSymbol"
+  ></aside>
+  <script type="module" src="./index.js"></script>
+</body>
+</html>

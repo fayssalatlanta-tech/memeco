@@ -33,10 +33,11 @@ export default defineConfig({
       input: {
         // One entry per migrated page. Add new keys as more pages move
         // to the Vite build.
-        system: resolve(__dirname, "src/pages/system/index.html"),
-        wallet: resolve(__dirname, "src/pages/wallet/index.html"),
-        token:  resolve(__dirname, "src/pages/token/index.html"),
-        whale:  resolve(__dirname, "src/pages/whale/index.html"),
+        system:    resolve(__dirname, "src/pages/system/index.html"),
+        wallet:    resolve(__dirname, "src/pages/wallet/index.html"),
+        token:     resolve(__dirname, "src/pages/token/index.html"),
+        whale:     resolve(__dirname, "src/pages/whale/index.html"),
+        dashboard: resolve(__dirname, "src/pages/dashboard/index.html"),
       },
     },
   },
