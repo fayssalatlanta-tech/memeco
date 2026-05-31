@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -8,6 +9,7 @@ import asyncpg
 import httpx
 
 from app.helius import HeliusClient
+from app.http_utils import UpstreamUnavailable
 
 TOP_HOLDER_LIMIT = 3
 TRANSACTION_LIMIT = 30
@@ -21,11 +23,10 @@ COORDINATED_DUMP_WARNING = 2
 COORDINATED_DUMP_DANGER = 3
 COORDINATED_DUMP_WINDOW = timedelta(minutes=10)
 
-# Helius parallelism. The HeliusClient already enforces a process-wide
-# minimum interval between calls via its rate-lock, so requests still go
-# out in a controlled stream — the semaphore just bounds in-flight tasks
-# and parallel TLS work without exceeding the rate limit.
-HELIUS_PARALLELISM = 10
+# Helius parallelism. Same reasoning as cluster_analysis_service — 4
+# in-flight × ~6.6 req/sec keeps us well under the 10/sec free-tier
+# ceiling. Override via HELIUS_PARALLELISM env if you have a paid plan.
+HELIUS_PARALLELISM = int(os.getenv("HELIUS_PARALLELISM", "4"))
 
 
 def unix_to_datetime(value) -> datetime | None:
@@ -722,15 +723,41 @@ async def run_wallet_manipulation_service(
     semaphore = asyncio.Semaphore(HELIUS_PARALLELISM)
     results: list[dict[str, Any]] = []
 
+    async def _safely_process(client: HeliusClient, row: dict[str, Any]) -> dict[str, Any]:
+        # An UpstreamUnavailable from one token (typically Helius 429
+        # storms) used to abort the whole pipeline. Now we record the
+        # failure on the row and continue so other tokens still progress.
+        try:
+            return await _process_token(pool, client, row, semaphore)
+        except UpstreamUnavailable as exc:
+            print(f"[manipulation] Helius unavailable for {row.get('symbol') or row.get('token_address')}: {exc}")
+            saved = await save_token_manipulation_state(
+                pool, row, edges=[], result={
+                    "manipulation_status": "MANIPULATION_UNKNOWN",
+                    "manipulation_pass": False,
+                    "manipulation_score": 0,
+                    "manipulation_reason": "Upstream Helius unavailable — analysis skipped",
+                    "shared_funder_cluster_size": 0,
+                    "token_distributor_count": 0,
+                    "linked_wallet_count": 0,
+                    "coordinated_dump_count": 0,
+                    "warnings": ["upstream_unavailable"],
+                    "details": {},
+                    "largest_shared_funder": None,
+                    "largest_token_distributor": None,
+                },
+            )
+            saved["symbol"] = row.get("symbol")
+            saved["token_address"] = row.get("token_address")
+            return saved
+
     if helius_client is not None:
         for row in rows:
-            saved = await _process_token(pool, helius_client, row, semaphore)
-            results.append(saved)
+            results.append(await _safely_process(helius_client, row))
         return results
 
     async with HeliusClient() as client:
         for row in rows:
-            saved = await _process_token(pool, client, row, semaphore)
-            results.append(saved)
+            results.append(await _safely_process(client, row))
 
     return results

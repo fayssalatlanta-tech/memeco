@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
@@ -8,12 +9,18 @@ import asyncpg
 import httpx
 
 from app.helius import HeliusClient
+from app.http_utils import UpstreamUnavailable
 
 # Helius parallelism. The HeliusClient already enforces a process-wide
 # minimum interval between calls via its rate-lock, so requests still go
 # out in a controlled stream — the semaphore just bounds in-flight tasks
 # and parallel TLS work without exceeding the rate limit.
-HELIUS_PARALLELISM = 10
+#
+# 4 in-flight × ~6.6 req/sec ceiling (HELIUS_MIN_REQUEST_INTERVAL_SECONDS
+# = 0.15) keeps us under the Helius free-tier 10/sec hard limit even
+# under bursty conditions; the previous combo of 10 in-flight + 0.1s
+# interval lined up with the cap exactly and tripped 429 storms.
+HELIUS_PARALLELISM = int(os.getenv("HELIUS_PARALLELISM", "4"))
 
 
 def unix_to_datetime(value) -> datetime | None:
@@ -492,18 +499,42 @@ async def run_cluster_analysis_service(
     semaphore = asyncio.Semaphore(HELIUS_PARALLELISM)
     results: list[dict[str, Any]] = []
 
+    async def _safely_process(client: HeliusClient, row: dict[str, Any]) -> dict[str, Any]:
+        # An UpstreamUnavailable from one token (typically Helius 429
+        # storms) used to abort the whole pipeline. Now we record the
+        # failure on the row and continue so other tokens still progress.
+        try:
+            return await _process_token(pool, client, row, semaphore)
+        except UpstreamUnavailable as exc:
+            print(f"[cluster] Helius unavailable for {row.get('symbol') or row.get('token_address')}: {exc}")
+            holder_count = len(row.get("holders") or [])
+            saved = await save_token_cluster_state(
+                pool, row, edges=[], result={
+                    "cluster_status": "CLUSTER_UNKNOWN",
+                    "cluster_pass": False,
+                    "cluster_reason": "Upstream Helius unavailable — analysis skipped",
+                    "holder_count": holder_count,
+                    "funded_holder_count": 0,
+                    "shared_funder_count": 0,
+                    "largest_cluster_size": 0,
+                    "largest_cluster_funder": None,
+                    "warnings": ["upstream_unavailable"],
+                },
+            )
+            saved["symbol"] = row.get("symbol")
+            saved["token_address"] = row.get("token_address")
+            return saved
+
     # Reuse a caller-provided HeliusClient when available (web_server lifespan
     # owns one process-wide). Otherwise create-and-close a local one — keeps
     # the standalone CLI scripts working.
     if helius_client is not None:
         for row in rows:
-            saved = await _process_token(pool, helius_client, row, semaphore)
-            results.append(saved)
+            results.append(await _safely_process(helius_client, row))
         return results
 
     async with HeliusClient() as client:
         for row in rows:
-            saved = await _process_token(pool, client, row, semaphore)
-            results.append(saved)
+            results.append(await _safely_process(client, row))
 
     return results

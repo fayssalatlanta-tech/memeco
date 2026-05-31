@@ -49,8 +49,11 @@ class HeliusClient:
     def __init__(self) -> None:
         self.api_key = os.getenv("HELIUS_API_KEY")
         self.timeout = httpx.Timeout(20.0)
+        # 0.15s = ~6.6 req/sec ceiling. Helius free tier is 10/s but
+        # bursts trigger 429 even under that. Paid tiers can override
+        # via HELIUS_MIN_REQUEST_INTERVAL_SECONDS.
         self.min_request_interval_seconds = float(
-            os.getenv("HELIUS_MIN_REQUEST_INTERVAL_SECONDS", "0.1")
+            os.getenv("HELIUS_MIN_REQUEST_INTERVAL_SECONDS", "0.15")
         )
         self._last_request_at = 0.0
         self._rate_lock = asyncio.Lock()
